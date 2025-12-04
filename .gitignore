@@ -26,15 +26,6 @@ htmlcov/
 .cache/
 coverage.xml
 
-# ─── NODE / VITE / VUE ───────────────────────────
-node_modules/
-dist/
-.vite/
-*.local
-*.log
-*.lock
-.env
-
 # ─── BUILD / TEMP FILES ──────────────────────────
 *.bak
 *.tmp
