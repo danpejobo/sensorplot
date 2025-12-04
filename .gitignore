@@ -1,0 +1,72 @@
+# ─── PYTHON / DJANGO ─────────────────────────────
+**/__pycache__/
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+**/.env
+*.env
+*.DS_Store
+**/db.sqlite3
+/backend/media
+.python-version
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+
+# Coverage reports
+htmlcov/
+.coverage
+.tox/
+.nox/
+.pytest_cache/
+.coverage.*
+.cache/
+coverage.xml
+
+# ─── NODE / VITE / VUE ───────────────────────────
+node_modules/
+dist/
+.vite/
+*.local
+*.log
+*.lock
+.env
+
+# ─── BUILD / TEMP FILES ──────────────────────────
+*.bak
+*.tmp
+*.temp
+*.orig
+*.old
+
+# ─── SYSTEM FILES ────────────────────────────────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+Desktop.ini
+
+# ─── GIT FILES ───────────────────────────────────
+*.patch
+*.rej
+*.diff
+
+# ─── TESTING ─────────────────────────────────────
+coverage/
+junit.xml
+test-results/
+
+# ─── BACKUP FILES ────────────────────────────────
+*~
+*.bak
+*.tmp
+*.sw?
+
+# ─── DOCKER / CONTAINERS (if applicable) ────────
+*.pid
+*.seed
+*.pid.lock
+docker-compose.override.yml
