@@ -36,8 +36,73 @@ Dette prosjektet bruker [Poetry](https://python-poetry.org/) for pakke- og avhen
 
 ## Bruk
 
-Du kan kjøre verktøyet ved å bruke `poetry run sensorplot`.
+Du kjører verktøyet ved å bruke `poetry run sensorplot`.
 
 ### Syntaks
 ```bash
 poetry run sensorplot --files <ALIAS>=<FILSTI> ... --formel "<FORMEL>" [OPTIONS]
+```
+
+### Argumenter
+
+| Flagg | Beskrivelse | Eksempel |
+| :--- | :--- | :--- |
+| `--files` | **Påkrevd.** Liste over filer og alias. Format: `Alias=Filsti` | `--files B=Baro.xlsx V=Vann.xlsx` |
+| `--formel` | **Påkrevd.** Matematisk formel som bruker aliasene. | `--formel "V.ch1 - B.ch1"` |
+| `--clean` | Fjerner støy (Z-score). Standard er 3.0 hvis tall utelates. | `--clean` eller `--clean 4.0` |
+| `--tittel` | Setter overskrift på plottet. | `--tittel "Justert Vannstand"` |
+| `--help` | Viser hjelpetekst. | `--help` |
+
+---
+
+## Eksempler
+
+### 1. Enkel Barometrisk Kompensasjon
+Her laster vi inn `Baro.xlsx` (som **B**) og `Laksemyra.xlsx` (som **L**), og trekker lufttrykket fra vannstanden.
+
+```bash
+poetry run sensorplot \
+  --files B=Baro.xlsx L="Laksemyra 1.xlsx" \
+  --formel "L.ch1 - B.ch1" \
+  --tittel "Vannstand korrigert for lufttrykk"
+```
+
+### 2. Avansert formel med enhetskonvertering
+Hvis barometeret er i kPa og vannstanden i meter, kan vi dele barometeret på 9.81 (tyngdekraft/tetthet) i formelen.
+
+```bash
+poetry run sensorplot \
+  --files Luft=Baro.xlsx Vann=Laksemyra.xlsx \
+  --formel "Vann.ch1 - (Luft.ch1 / 9.81)"
+```
+
+### 3. Fjerne støy (Cleaning)
+Hvis sensoren har logget feilverdier (f.eks. store hopp), kan du bruke `--clean`. Dette fjerner verdier som avviker mer enn 3 standardavvik fra snittet (default).
+
+```bash
+poetry run sensorplot \
+  --files Data=MinFil.xlsx \
+  --formel "Data.ch1" \
+  --clean
+```
+*(Du kan også spesifisere strenghetsgrad: `--clean 5` beholder mer data, `--clean 2` fjerner mer).*
+
+---
+
+## Utvikling og Testing
+
+Vi bruker `pytest` for automatisk testing.
+
+### Kjøre tester
+Testene ligger i `tests/`-mappen. For å kjøre dem:
+
+```bash
+poetry run pytest
+```
+
+### Testdata
+For at integrasjonstestene skal fungere, må du legge ekte datafiler i mappen `tests/data/`:
+* `tests/data/Baro.xlsx`
+* `tests/data/Laksemyra 1.xlsx`
+
+Hvis disse mangler, vil `pytest` hoppe over testene som krever filinnlesing, men fortsatt sjekke logikken i programmet.
