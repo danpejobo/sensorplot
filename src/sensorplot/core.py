@@ -15,10 +15,8 @@ def last_og_rens_data(filsti, alias, col_date, col_time, col_data):
     except Exception as e:
         raise ValueError(f"Kunne ikke lese {filsti}: {e}")
     
-    # Rens kolonnenavn (fjerner mellomrom)
     df.columns = [str(c).strip() for c in df.columns]
     
-    # Sjekk at datakolonnen finnes
     if col_data not in df.columns:
          raise ValueError(f"Fant ikke datakolonnen '{col_data}' i {filsti}. Tilgjengelige: {df.columns.tolist()}")
 
@@ -41,9 +39,7 @@ def last_og_rens_data(filsti, alias, col_date, col_time, col_data):
     
     df = df.sort_values('Datetime')
     
-    # Returner kun relevante data
     df_clean = df[['Datetime', col_data]].copy()
-    # Rename til Alias.ch1 (internt navn)
     df_clean.columns = ['Datetime', f'{alias}.ch1']
     
     return df_clean
@@ -64,17 +60,29 @@ def vask_data(df, kolonne, z_score):
     
     return df_vasket, fjernet
 
-def plot_resultat(df, x_col, y_col, tittel, formel_tekst, output_file=None):
+def plot_resultat(result_series_list, tittel, output_file=None):
     """
-    Genererer plottet.
-    Lagrer til fil hvis output_file er satt, ellers vises GUI.
+    Genererer plottet for FLERE serier.
+    Args:
+        result_series_list: Liste med dicts [{'df': dataframe, 'label': 'Tekst'}, ...]
+        tittel: Tittel på plottet
+        output_file: Filnavn for lagring (valgfritt)
     """
     fig, ax = plt.subplots(figsize=(14, 7))
     
-    # ENDRET FARGE HER: color='royalblue' (var #111518)
-    ax.plot(df[x_col], df[y_col], label='Beregnet verdi', color='royalblue', linewidth=1)
+    # Fargepalett (Matplotlib default cyclus)
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
     
-    ax.set_title(f"{tittel}\n({formel_tekst})", fontsize=14)
+    for i, serie in enumerate(result_series_list):
+        df = serie['df']
+        label = serie['label']
+        # Velg farge fra listen (roterer hvis det er mange linjer)
+        farge = colors[i % len(colors)]
+        
+        ax.plot(df['Datetime'], df['Resultat'], label=label, color=farge, linewidth=1.5, alpha=0.9)
+    
+    ax.set_title(tittel, fontsize=14)
     ax.set_ylabel("Verdi", fontsize=12)
     
     # X-akse formatering
@@ -88,7 +96,6 @@ def plot_resultat(df, x_col, y_col, tittel, formel_tekst, output_file=None):
     ax.minorticks_on()
     ax.grid(True, which='minor', linestyle=':', alpha=0.4)
     
-    # Legger til legenden (denne vil nå automatisk få blått symbol)
     ax.legend()
     plt.tight_layout()
     
