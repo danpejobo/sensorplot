@@ -62,7 +62,7 @@ def test_independent_pairs(tmp_path):
         use_time_col=use_time_col
     )
     
-    # ENDRING HER: Bruk punktum .df i stedet for ['df']
+    # BRUKER .df (Dataclass)
     vals1 = res1.df['Resultat'].values
     assert vals1[0] == 90.0
     assert "L1" in loaded_dfs_cache
@@ -80,7 +80,7 @@ def test_independent_pairs(tmp_path):
         use_time_col=use_time_col
     )
     
-    # ENDRING HER: Bruk punktum .df
+    # BRUKER .df (Dataclass)
     vals2 = res2.df['Resultat'].values
     assert vals2[0] == 45.0
     
