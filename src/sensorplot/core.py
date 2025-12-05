@@ -1,52 +1,59 @@
+from dataclasses import dataclass
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import os
+from pathlib import Path
 
-def last_og_rens_data(filsti, alias, col_date, col_time, col_data):
-    """
-    Laster Excel eller CSV-fil.
-    Håndterer metadata i toppen av CSV-filer automatisk.
-    """
-    if not os.path.exists(filsti):
-        raise FileNotFoundError(f"Finner ikke filen '{filsti}'.")
+@dataclass
+class SensorResult:
+    label: str
+    df: pd.DataFrame
+    
 
-    # Sjekk filendelse
-    _, ext = os.path.splitext(filsti)
-    ext = ext.lower()
+def last_og_rens_data(
+    filsti: str | Path, 
+    alias: str, 
+    col_date: str, 
+    col_time: str | None, 
+    col_data: str
+) -> pd.DataFrame:
+    
+    path = Path(filsti)
+    if not path.exists():
+        raise FileNotFoundError(f"Finner ikke filen '{path}'")
 
-    try:
-        if ext == '.xlsx':
-            # Excel leses som før
-            df = pd.read_excel(filsti, engine='openpyxl')
+    ext = path.suffix.lower()
+    
+    # Default to standard ISO (Year-Month-Day) unless CSV overrides it
+    day_first_config = False
+
+    match ext:
+        case '.xlsx':
+            df = pd.read_excel(path, engine='openpyxl')
         
-        elif ext == '.csv':
-            # CSV krever detektivarbeid pga metadata i toppen.
+        case '.csv':
             header_row = 0
-            encoding = 'latin1' # Vanlig for loggere (støtter °C tegnet)
+            encoding = 'latin1'
             
-            # 1. Finn linjen der headeren (f.eks "Date") starter
-            with open(filsti, 'r', encoding=encoding) as f:
+            with open(path, 'r', encoding=encoding) as f:
                 for i, line in enumerate(f):
                     if col_date in line:
                         header_row = i
                         break
             
-            # 2. Les CSV med riktige innstillinger for norske data
             df = pd.read_csv(
-                filsti, 
-                sep=';',        # Semikolon som skille
-                decimal=',',    # Komma som desimal
+                path, 
+                sep=';', 
+                decimal=',', 
                 skiprows=header_row, 
                 encoding=encoding,
-                on_bad_lines='skip' 
+                on_bad_lines='skip'
             )
+            # Your CSVs use DD.MM.YYYY
+            day_first_config = True
             
-        else:
-             raise ValueError(f"Ukjent filformat: {ext}. Støtter kun .xlsx og .csv")
-
-    except Exception as e:
-        raise ValueError(f"Kunne ikke lese {filsti}: {e}")
+        case _:
+            raise ValueError(f"Ukjent filformat: {ext}")
     
     # Rens kolonnenavn (fjerner mellomrom)
     df.columns = [str(c).strip() for c in df.columns]
@@ -60,14 +67,20 @@ def last_og_rens_data(filsti, alias, col_date, col_time, col_data):
         if col_date not in df.columns:
              raise ValueError(f"Mangler datokolonne '{col_date}' i {filsti}")
         try:
-            # dayfirst=True er viktig for CSV (f.eks 19.09.2024)
-            df['Datetime'] = pd.to_datetime(df[col_date].astype(str) + ' ' + df[col_time].astype(str), dayfirst=True)
+            # Bruker variabelen day_first_config som vi satte over
+            df['Datetime'] = pd.to_datetime(
+                df[col_date].astype(str) + ' ' + df[col_time].astype(str), 
+                dayfirst=day_first_config
+            )
         except Exception as e:
             raise ValueError(f"Feil ved sammenslåing av dato/tid i {alias}: {e}")
 
     elif col_date in df.columns:
         try:
-            df['Datetime'] = pd.to_datetime(df[col_date].astype(str), dayfirst=True)
+            df['Datetime'] = pd.to_datetime(
+                df[col_date].astype(str), 
+                dayfirst=day_first_config
+            )
         except Exception as e:
              raise ValueError(f"Kunne ikke tolke '{col_date}' som dato i {alias}: {e}")
     else:
@@ -105,8 +118,8 @@ def plot_resultat(result_series_list, tittel, output_file=None):
     colors = prop_cycle.by_key()['color']
     
     for i, serie in enumerate(result_series_list):
-        df = serie['df']
-        label = serie['label']
+        df = serie.df
+        label = serie.label
         farge = colors[i % len(colors)]
         
         ax.plot(df['Datetime'], df['Resultat'], label=label, color=farge, linewidth=1.5, alpha=0.9)

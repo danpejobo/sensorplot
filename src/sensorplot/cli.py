@@ -2,7 +2,7 @@ import argparse
 import sys
 import re
 import pandas as pd
-from sensorplot.core import last_og_rens_data, vask_data, plot_resultat
+from sensorplot.core import SensorResult, last_og_rens_data, vask_data, plot_resultat
 
 # ==============================================================================
 #   KONFIGURASJON AV ARGUMENTER
@@ -170,10 +170,7 @@ def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cach
         print("  -> ADVARSEL: Ingen data igjen etter prosessering.")
         return None
 
-    return {
-        'df': merged_df,
-        'label': series_label
-    }
+    return SensorResult(df=merged_df, label=series_label)
 
 
 def main():
