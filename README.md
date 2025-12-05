@@ -2,7 +2,7 @@
 
 **Sensorplot** er et kommandolinjeverktøy (CLI) skrevet i Python for å visualisere og analysere tidsseriedata fra sensorer (Excel-filer).
 
-Verktøyet er designet for å enkelt sammenligne data fra ulike filer, utføre matematiske korrigeringer (f.eks. barometrisk kompensasjon) og automatisk rense data for støy. Det er fleksibelt og kan lese filer med ulike kolonnenavn.
+Verktøyet er designet for å enkelt sammenligne data fra ulike filer, utføre matematiske korrigeringer (f.eks. barometrisk kompensasjon) og automatisk rense data for støy. Det støtter både interaktiv visning (GUI) og lagring til fil (headless/server).
 
 ## Funksjonalitet
 
@@ -10,6 +10,7 @@ Verktøyet er designet for å enkelt sammenligne data fra ulike filer, utføre m
 * **Matematiske formler:** Lar deg definere regnestykker direkte i terminalen (f.eks. `Vann.ch1 - Baro.ch1`).
 * **Automatisk vasking:** Fjerner "outliers" (ekstreme verdier/støy) basert på statistisk Z-score.
 * **Fleksibel import:** Støtter egendefinerte kolonnenavn for dato, tid og data.
+* **Lagring:** Kan lagre plott som bildefil (PNG, PDF, etc.) – perfekt for remote servere eller VS Code.
 
 ---
 
@@ -51,11 +52,20 @@ poetry run sensorplot --files <ALIAS>=<FILSTI> ... --formel "<FORMEL>" [OPTIONS]
 | :--- | :--- | :--- |
 | `--files` | **Påkrevd.** Liste over filer og alias. Format: `Alias=Filsti` | - |
 | `--formel` | **Påkrevd.** Matematisk formel. NB: Bruk alltid `.ch1` i formelen (se under). | - |
+| `--output` | Lagring/Visning. Se tabell under for oppførsel. | Vis GUI (None) |
 | `--clean` | Fjerner støy (Z-score). Bruk alene eller med tall (f.eks 4.0). | 3.0 (hvis flagg er satt) |
 | `--tittel` | Setter overskrift på plottet. | "Sensor Plot" |
 | `--datecol` | Navn på kolonnen som inneholder dato. | "Date5" |
-| `--timecol` | Navn på kolonnen som inneholder tid. Sett til `None` hvis dato/tid er i én kolonne. | "Time6" |
+| `--timecol` | Navn på tidskolonne (`None` hvis samlet). | "Time6" |
 | `--datacol` | Navn på datakolonnen du vil lese fra filen. | "ch1" |
+
+### Oppførsel for `--output`
+
+| Kommando | Resultat |
+| :--- | :--- |
+| `sensorplot ...` (ingen flagg) | Åpner et **GUI-vindu** med plottet (lokal bruk). |
+| `sensorplot ... --output` | Lagrer plottet som **`sensorplot.png`** i gjeldende mappe. |
+| `sensorplot ... --output graf.pdf` | Lagrer plottet som **`graf.pdf`** (valgfritt navn/sti). |
 
 > **VIKTIG OM FORMELER:**
 > Selv om du leser data fra en kolonne som heter "Temperatur" (via `--datacol`), vil programmet internt kalle denne `Alias.ch1` for å gjøre formelskriving enklere.
@@ -67,8 +77,8 @@ poetry run sensorplot --files <ALIAS>=<FILSTI> ... --formel "<FORMEL>" [OPTIONS]
 
 ## Eksempler
 
-### 1. Standard bruk (Dine faste filer)
-Her laster vi inn `Baro.xlsx` og `Laksemyra.xlsx`. Siden vi ikke spesifiserer kolonnenavn, brukes standardene (`Date5`, `Time6`, `ch1`).
+### 1. Standard bruk (GUI / Lokal PC)
+Her laster vi inn `Baro.xlsx` og `Laksemyra.xlsx`. Siden vi ikke spesifiserer kolonnenavn, brukes standardene. Plottet vises i et popup-vindu.
 
 ```bash
 poetry run sensorplot \
@@ -77,7 +87,18 @@ poetry run sensorplot \
   --tittel "Vannstand korrigert for lufttrykk"
 ```
 
-### 2. Fjerne støy (Cleaning)
+### 2. Kjøring på Server / Remote (Lagre til fil)
+På en server uten skjerm (headless) eller via VS Code Remote, vil du lagre plottet i stedet for å vise det.
+
+```bash
+# Lagrer til standardfilen 'sensorplot.png'
+poetry run sensorplot --files B=Baro.xlsx --formel "B.ch1" --output
+
+# Lagrer til spesifikt navn
+poetry run sensorplot --files B=Baro.xlsx --formel "B.ch1" --output rapport_uke42.png
+```
+
+### 3. Fjerne støy (Cleaning)
 Hvis sensoren har logget feilverdier, bruk `--clean`.
 
 ```bash
@@ -87,7 +108,7 @@ poetry run sensorplot \
   --clean
 ```
 
-### 3. Egendefinerte kolonnenavn
+### 4. Egendefinerte kolonnenavn
 Hvis du har en fil med norske kolonnenavn: `Dato`, `Klokkeslett` og `Nivå`.
 
 ```bash
@@ -97,17 +118,6 @@ poetry run sensorplot \
   --datecol Dato \
   --timecol Klokkeslett \
   --datacol Nivå
-```
-
-### 4. Dato og tid i samme kolonne
-Hvis filen har en kolonne `Timestamp` som inneholder både dato og tid (f.eks "2024-01-01 12:00").
-
-```bash
-poetry run sensorplot \
-  --files A=Logg.xlsx \
-  --formel "A.ch1" \
-  --datecol Timestamp \
-  --timecol None
 ```
 
 ---
