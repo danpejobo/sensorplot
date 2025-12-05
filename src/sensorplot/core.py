@@ -1,15 +1,16 @@
 from dataclasses import dataclass
+from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from pathlib import Path
 
+# --- 1. DATACLASS (Ny struktur for resultat) ---
 @dataclass
 class SensorResult:
     label: str
     df: pd.DataFrame
-    
 
+# --- 2. TYPE HINTING (Forteller hva funksjonen forventer) ---
 def last_og_rens_data(
     filsti: str | Path, 
     alias: str, 
@@ -17,19 +18,20 @@ def last_og_rens_data(
     col_time: str | None, 
     col_data: str
 ) -> pd.DataFrame:
-    
+    """
+    Laster Excel eller CSV-fil med moderne Path og match/case.
+    """
     path = Path(filsti)
     if not path.exists():
         raise FileNotFoundError(f"Finner ikke filen '{path}'")
 
     ext = path.suffix.lower()
-    
-    # Default to standard ISO (Year-Month-Day) unless CSV overrides it
     day_first_config = False
 
     match ext:
         case '.xlsx':
             df = pd.read_excel(path, engine='openpyxl')
+            day_first_config = False
         
         case '.csv':
             header_row = 0
@@ -49,31 +51,28 @@ def last_og_rens_data(
                 encoding=encoding,
                 on_bad_lines='skip'
             )
-            # Your CSVs use DD.MM.YYYY
             day_first_config = True
             
         case _:
             raise ValueError(f"Ukjent filformat: {ext}")
     
-    # Rens kolonnenavn (fjerner mellomrom)
+    # Rens kolonnenavn
     df.columns = [str(c).strip() for c in df.columns]
     
-    # Sjekk at datakolonnen finnes
     if col_data not in df.columns:
-         raise ValueError(f"Fant ikke datakolonnen '{col_data}' i {filsti}. Tilgjengelige: {df.columns.tolist()}")
+         raise ValueError(f"Fant ikke datakolonnen '{col_data}' i {path}. Tilgjengelige: {df.columns.tolist()}")
 
-    # Håndtering av tid
+    # Tidshåndtering
     if col_time and col_time in df.columns:
         if col_date not in df.columns:
-             raise ValueError(f"Mangler datokolonne '{col_date}' i {filsti}")
+             raise ValueError(f"Mangler datokolonne '{col_date}' i {path}")
         try:
-            # Bruker variabelen day_first_config som vi satte over
             df['Datetime'] = pd.to_datetime(
                 df[col_date].astype(str) + ' ' + df[col_time].astype(str), 
                 dayfirst=day_first_config
             )
         except Exception as e:
-            raise ValueError(f"Feil ved sammenslåing av dato/tid i {alias}: {e}")
+            raise ValueError(f"Feil ved dato/tid sammenslåing i {alias}: {e}")
 
     elif col_date in df.columns:
         try:
@@ -84,18 +83,17 @@ def last_og_rens_data(
         except Exception as e:
              raise ValueError(f"Kunne ikke tolke '{col_date}' som dato i {alias}: {e}")
     else:
-        raise ValueError(f"Fant verken '{col_date}' eller '{col_time}' i {filsti}.")
+        raise ValueError(f"Fant verken '{col_date}' eller '{col_time}' i {path}.")
     
     df = df.sort_values('Datetime')
     
-    # Returner kun relevante data
     df_clean = df[['Datetime', col_data]].copy()
     df_clean.columns = ['Datetime', f'{alias}.ch1']
     
     return df_clean
 
-def vask_data(df, kolonne, z_score):
-    """Fjerner data som er statistiske utliggere (outliers)."""
+def vask_data(df: pd.DataFrame, kolonne: str, z_score: float) -> tuple[pd.DataFrame, int]:
+    """Fjerner data som er statistiske utliggere."""
     data = df[kolonne]
     std = data.std()
     
@@ -110,7 +108,11 @@ def vask_data(df, kolonne, z_score):
     
     return df_vasket, fjernet
 
-def plot_resultat(result_series_list, tittel, output_file=None):
+def plot_resultat(
+    result_series_list: list[SensorResult], 
+    tittel: str, 
+    output_file: str | None = None
+) -> None:
     """Genererer plottet for FLERE serier."""
     fig, ax = plt.subplots(figsize=(14, 7))
     
@@ -118,10 +120,11 @@ def plot_resultat(result_series_list, tittel, output_file=None):
     colors = prop_cycle.by_key()['color']
     
     for i, serie in enumerate(result_series_list):
+        # HER BRUKER VI NÅ PUNKTUM (Dataclass) I STEDET FOR ['key']
         df = serie.df
         label = serie.label
-        farge = colors[i % len(colors)]
         
+        farge = colors[i % len(colors)]
         ax.plot(df['Datetime'], df['Resultat'], label=label, color=farge, linewidth=1.5, alpha=0.9)
     
     ax.set_title(tittel, fontsize=14)
