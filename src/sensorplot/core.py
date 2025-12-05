@@ -3,14 +3,18 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import logging
 
-# --- 1. DATACLASS (Ny struktur for resultat) ---
+# Opprett logger for denne modulen
+logger = logging.getLogger(__name__)
+
+# --- DATACLASS ---
 @dataclass
 class SensorResult:
     label: str
     df: pd.DataFrame
 
-# --- 2. TYPE HINTING (Forteller hva funksjonen forventer) ---
+# --- TYPE HINTING ---
 def last_og_rens_data(
     filsti: str | Path, 
     alias: str, 
@@ -120,7 +124,6 @@ def plot_resultat(
     colors = prop_cycle.by_key()['color']
     
     for i, serie in enumerate(result_series_list):
-        # HER BRUKER VI NÅ PUNKTUM (Dataclass) I STEDET FOR ['key']
         df = serie.df
         label = serie.label
         
@@ -146,9 +149,9 @@ def plot_resultat(
     if output_file:
         try:
             plt.savefig(output_file)
-            print(f"Plot lagret til fil: {output_file}")
+            logger.info(f"Plot lagret til fil: {output_file}")
         except Exception as e:
-            print(f"Kunne ikke lagre plot til {output_file}: {e}")
+            logger.error(f"Kunne ikke lagre plot til {output_file}: {e}")
     else:
-        print("Viser plot...")
+        logger.info("Viser plot...")
         plt.show()
