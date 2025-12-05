@@ -182,7 +182,7 @@ def main():
         print("Ingen data igjen å plotte.")
         return
 
-    plot_resultat(base_df, 'Datetime', 'Resultat', args.plot_title, args.calc_formula)
+    plot_resultat(base_df, 'Datetime', 'Resultat', args.plot_title, args.calc_formula, output_file=args.output_file)
 
 if __name__ == "__main__":
     main()

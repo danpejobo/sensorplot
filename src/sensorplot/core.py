@@ -70,7 +70,9 @@ def plot_resultat(df, x_col, y_col, tittel, formel_tekst, output_file=None):
     Lagrer til fil hvis output_file er satt, ellers vises GUI.
     """
     fig, ax = plt.subplots(figsize=(14, 7))
-    ax.plot(df[x_col], df[y_col], label='Beregnet verdi', color='#1f77b4', linewidth=1)
+    
+    # ENDRET FARGE HER: color='royalblue' (var #111518)
+    ax.plot(df[x_col], df[y_col], label='Beregnet verdi', color='royalblue', linewidth=1)
     
     ax.set_title(f"{tittel}\n({formel_tekst})", fontsize=14)
     ax.set_ylabel("Verdi", fontsize=12)
@@ -86,6 +88,7 @@ def plot_resultat(df, x_col, y_col, tittel, formel_tekst, output_file=None):
     ax.minorticks_on()
     ax.grid(True, which='minor', linestyle=':', alpha=0.4)
     
+    # Legger til legenden (denne vil nå automatisk få blått symbol)
     ax.legend()
     plt.tight_layout()
     
