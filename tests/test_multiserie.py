@@ -34,17 +34,11 @@ def test_independent_pairs(tmp_path):
     """
     
     # 1. GENERER DATA (3 punkter per fil)
-    # Dato: 2024-01-01 kl 12, 13, 14
-    
-    # Par 1: L1=100, B1=10  => Forventet: 90
     l1_path = lag_dummy_excel(tmp_path, "Laks1.xlsx", "2024-01-01", [100, 100, 100])
     b1_path = lag_dummy_excel(tmp_path, "Baro1.xlsx", "2024-01-01", [10, 10, 10])
-    
-    # Par 2: L2=50, B2=5    => Forventet: 45
     l2_path = lag_dummy_excel(tmp_path, "Laks2.xlsx", "2024-01-01", [50, 50, 50])
     b2_path = lag_dummy_excel(tmp_path, "Baro2.xlsx", "2024-01-01", [5, 5, 5])
     
-    # Simuler --files input
     files_dict = {
         "L1": l1_path,
         "B1": b1_path,
@@ -68,8 +62,8 @@ def test_independent_pairs(tmp_path):
         use_time_col=use_time_col
     )
     
-    # Sjekk resultat (100 - 10 = 90)
-    vals1 = res1['df']['Resultat'].values
+    # ENDRING HER: Bruk punktum .df i stedet for ['df']
+    vals1 = res1.df['Resultat'].values
     assert vals1[0] == 90.0
     assert "L1" in loaded_dfs_cache
     assert "B1" in loaded_dfs_cache
@@ -86,11 +80,10 @@ def test_independent_pairs(tmp_path):
         use_time_col=use_time_col
     )
     
-    # Sjekk resultat (50 - 5 = 45)
-    vals2 = res2['df']['Resultat'].values
+    # ENDRING HER: Bruk punktum .df
+    vals2 = res2.df['Resultat'].values
     assert vals2[0] == 45.0
     
-    # Sjekk at cache nå inneholder alle 4 filene
     assert "L2" in loaded_dfs_cache
     assert "B2" in loaded_dfs_cache
     assert len(loaded_dfs_cache) == 4
