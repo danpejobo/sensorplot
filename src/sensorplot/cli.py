@@ -97,7 +97,7 @@ def parse_files_arg(file_args):
     files_dict = {}
     for item in file_args:
         if "=" not in item:
-            print(
+            logger.error(
                 f"FEIL: Ugyldig format på fil-argumentet '{item}'. Bruk Alias=Filnavn.xlsx")
             sys.exit(1)
         alias, path = item.split("=", 1)
@@ -115,13 +115,13 @@ def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cach
     """
     Nå kjøres denne funksjonen i en egen tråd!
     """
-    print(
+    logger.info(
         # Endret tekst litt for å vise parallellitet
         f"Starter serie: '{series_label}'...")
 
     needed_aliases = extract_aliases_from_formula(formula)
     if not needed_aliases:
-        print(f"FEIL: Fant ingen aliaser i formelen: {formula}")
+        logger.error(f"FEIL: Fant ingen aliaser i formelen: {formula}")
         return None  # Returner None i stedet for sys.exit så vi ikke dreper alle tråder
 
     current_dfs = []
@@ -134,16 +134,16 @@ def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cach
             with cache_lock:
                 if alias not in loaded_dfs_cache:  # Dobbeltsjekk
                     if alias not in all_files_dict:
-                        print(f"FEIL: Alias '{alias}' mangler.")
+                        logger.error(f"FEIL: Alias '{alias}' mangler.")
                         return None
 
-                    print(f"  -> Laster fil for {alias}...")
+                    logger.info(f"  -> Laster fil for {alias}...")
                     try:
                         loaded_dfs_cache[alias] = last_og_rens_data(
                             all_files_dict[alias], alias, args.col_date, use_time_col, args.col_data
                         )
                     except Exception as e:
-                        print(f"  -> FEIL ved lesing av {alias}: {e}")
+                        logger.error(f"  -> FEIL ved lesing av {alias}: {e}")
                         return None
 
         # Nå er filen garantert i cache, hent den ut
@@ -168,20 +168,20 @@ def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cach
     try:
         merged_df['Resultat'] = merged_df.eval(safe_formel)
     except Exception as e:
-        print(f"  -> FEIL i formel '{formula}': {e}")
+        logger.error(f"  -> FEIL i formel '{formula}': {e}")
         return None
 
     if args.clean_threshold is not None:
         merged_df, antall = vask_data(
             merged_df, 'Resultat', z_score=args.clean_threshold)
         if antall > 0:
-            print(f"  -> {series_label}: Renset {antall} punkter.")
+            logger.info(f"  -> {series_label}: Renset {antall} punkter.")
 
     if merged_df.empty:
-        print(f"  -> {series_label}: Ingen data igjen.")
+        logger.warning(f"  -> {series_label}: Ingen data igjen.")
         return None
 
-    print(f"Ferdig med: '{series_label}'")
+    logger.info(f"Ferdig med: '{series_label}'")
     return SensorResult(label=series_label, df=merged_df)
 
 
