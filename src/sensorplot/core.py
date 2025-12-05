@@ -6,13 +6,6 @@ import os
 def last_og_rens_data(filsti, alias, col_date, col_time, col_data):
     """
     Laster Excel-fil med fleksible kolonnenavn.
-    
-    Args:
-        filsti (str): Stien til filen.
-        alias (str): Kallenavn for filen.
-        col_date (str): Navn på datokolonnen (f.eks 'Date5').
-        col_time (str): Navn på tidskolonnen (f.eks 'Time6'). Kan være None.
-        col_data (str): Navn på datakolonnen (f.eks 'ch1').
     """
     if not os.path.exists(filsti):
         raise FileNotFoundError(f"Finner ikke filen '{filsti}'.")
@@ -30,17 +23,14 @@ def last_og_rens_data(filsti, alias, col_date, col_time, col_data):
          raise ValueError(f"Fant ikke datakolonnen '{col_data}' i {filsti}. Tilgjengelige: {df.columns.tolist()}")
 
     # Håndtering av tid
-    # Alternativ A: Vi har både dato og tid i separate kolonner
     if col_time and col_time in df.columns:
         if col_date not in df.columns:
              raise ValueError(f"Mangler datokolonne '{col_date}' i {filsti}")
-        
         try:
             df['Datetime'] = pd.to_datetime(df[col_date].astype(str) + ' ' + df[col_time].astype(str))
         except Exception as e:
             raise ValueError(f"Feil ved sammenslåing av dato/tid i {alias}: {e}")
 
-    # Alternativ B: Dato og tid er i samme kolonne (eller vi mangler tidskolonne)
     elif col_date in df.columns:
         try:
             df['Datetime'] = pd.to_datetime(df[col_date].astype(str))
@@ -53,13 +43,13 @@ def last_og_rens_data(filsti, alias, col_date, col_time, col_data):
     
     # Returner kun relevante data
     df_clean = df[['Datetime', col_data]].copy()
-    # Rename til Alias.Kolonne
-    df_clean.columns = ['Datetime', f'{alias}.ch1'] # Vi beholder .ch1 suffiks internt for enkel formelbruk
+    # Rename til Alias.ch1 (internt navn)
+    df_clean.columns = ['Datetime', f'{alias}.ch1']
     
     return df_clean
 
 def vask_data(df, kolonne, z_score):
-    # (Ingen endring her - kopier funksjonen fra forrige versjon)
+    """Fjerner data som er statistiske utliggere (outliers)."""
     data = df[kolonne]
     std = data.std()
     
@@ -74,14 +64,18 @@ def vask_data(df, kolonne, z_score):
     
     return df_vasket, fjernet
 
-def plot_resultat(df, x_col, y_col, tittel, formel_tekst):
-    # (Ingen endring her - kopier funksjonen fra forrige versjon)
+def plot_resultat(df, x_col, y_col, tittel, formel_tekst, output_file=None):
+    """
+    Genererer plottet.
+    Lagrer til fil hvis output_file er satt, ellers vises GUI.
+    """
     fig, ax = plt.subplots(figsize=(14, 7))
     ax.plot(df[x_col], df[y_col], label='Beregnet verdi', color='#1f77b4', linewidth=1)
     
     ax.set_title(f"{tittel}\n({formel_tekst})", fontsize=14)
     ax.set_ylabel("Verdi", fontsize=12)
     
+    # X-akse formatering
     locator = mdates.WeekdayLocator(interval=1, byweekday=mdates.MO)
     ax.xaxis.set_major_locator(locator)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m.%Y'))
@@ -94,4 +88,13 @@ def plot_resultat(df, x_col, y_col, tittel, formel_tekst):
     
     ax.legend()
     plt.tight_layout()
-    plt.show()
+    
+    if output_file:
+        try:
+            plt.savefig(output_file)
+            print(f"Plot lagret til fil: {output_file}")
+        except Exception as e:
+            print(f"Kunne ikke lagre plot til {output_file}: {e}")
+    else:
+        print("Viser plot...")
+        plt.show()

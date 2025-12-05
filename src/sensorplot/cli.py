@@ -12,6 +12,7 @@ ARG_FILES   = 'files'    # Flagg: --files
 ARG_FORMULA = 'formel'   # Flagg: --formel
 ARG_CLEAN   = 'clean'    # Flagg: --clean
 ARG_TITLE   = 'tittel'   # Flagg: --tittel
+ARG_OUTPUT  = 'output'   # Flagg: --output
 
 # Nye flagg for kolonnenavn
 ARG_COL_DATE = 'datecol'
@@ -110,6 +111,10 @@ def main():
 
     parser.add_argument(f'--{ARG_COL_DATA}', dest='col_data', type=str, default=DEF_DATA,
                         help=f'Navn på datokolonne som skal plottes (Standard: {DEF_DATA})')
+    
+    parser.add_argument(f'--{ARG_OUTPUT}', dest='output_file', 
+                        nargs='?', const='sensorplot.png', default=None, type=str,
+                        help='Lagre plott. Uten filnavn: "sensorplot.png". Utelatt flagg: Vis GUI.')
 
     # Vis hjelp hvis ingen argumenter
     if len(sys.argv) == 1:
