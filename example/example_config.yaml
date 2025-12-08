@@ -8,72 +8,63 @@
 # ------------------------------------------------------------------------------
 settings:
   # Tittel på plottet
-  title: "Vannstandsanalyse - Laksemyra & TAP Nord (2023-2024)"
+  title: "Eksempel: Blanding av filformater og kolonnenavn"
 
-  # Hvor skal bildet lagres? 
-  # Hvis du fjerner denne linjen (eller kommenterer ut), vises GUI-vinduet i stedet.
-  output: "resultat_analyse.png"
+  # Hvor skal bildet lagres? (Fjern linjen for å vise GUI)
+  output: "sensorplot_eksempel.png"
 
-  # Fjerning av støy (Z-score).
-  # 3.0 er standard. Høyere tall = beholder mer data (løsere). Lavere tall = strengere.
+  # Fjerning av støy (Z-score). 3.0 er standard.
   clean: 3.0
 
-  # Styring av X-aksen (Tidslinjen).
-  # Angi intervall for etiketter manuelt hvis det blir rotete.
-  # Eksempler: "1M" (Hver måned), "2W" (Hver 2. uke), "1Y" (Hvert år), "3D" (Hver 3. dag).
-  # Sett til "" eller fjern linjen for automatisk styring.
-  x_interval: "2M"
+  # X-akse format (Valgfritt). Eks: "2W" (2 uker), "1M" (1 mnd).
+  x_interval: "1M"
 
-  # Kolonnenavn i kildefilene dine.
-  # Disse brukes hvis ikke annet er spesifisert.
+  # STANDARD KOLONNENAVN
+  # Disse brukes for alle filer med mindre du overstyrer dem under 'files'.
+  # Basert på dine "Laksmyra"-filer:
   col_date: "Date"
   col_time: "Time"
-  col_data: "LEVEL"   # Ofte "ch1", "LEVEL", eller "Value"
+  col_data: "LEVEL"
 
 # ------------------------------------------------------------------------------
 # 2. FILER (DEFINER ALIAS)
 # ------------------------------------------------------------------------------
 files:
-  # Barometer (Referanse)
-  # Merk: Stiene er relative til hvor du kjører kommandoen fra.
+  # TYPE 1: Enkel definisjon (Bruker standardinnstillingene)
+  # Barometeret har kolonnen "LEVEL", så den matcher standarden over.
   B: "tests/data/Barologger 2024.csv"
+  B2: 
+    path: "tests/data/TAP-Baro.xlsx"
+    col_data: "ch1"
+  
+  L1: "tests/data/Laksmyra1 2024.csv"
 
-  # Lokasjon 1: Laksemyra (Excel/CSV-filer)
-  # Her later vi som at vi har data for to år i to forskjellige filer
-  L1_23: "tests/data/Laksmyra1 2023.xlsx"  # (Eksempelnavn)
-  L1_24: "tests/data/Laksmyra1 2024.csv"
+  # TYPE 2: Overstyring av kolonner (Per fil)
+  # TAP-filen skiller seg ut! Den bruker "ch1" i stedet for "LEVEL".
+  # Derfor definerer vi den som et objekt og overstyrer col_data.
+  TAP:
+    path: "tests/data/TAP-data.xlsx"
+    col_data: "ch1"  # <--- OVERSTYRING
 
-  # Lokasjon 2: TAP Nord (CSV-filer med annet format)
-  TAP_24: "tests/data/TAP-data.xlsx - TAP N brønn 3 2024.csv"
+  # TYPE 3: Total overstyring (Eks: Gammel Excel-fil)
+  # Viser hvordan du kan endre alt hvis filen er helt sær.
+  # (Kommentert ut siden filen ikke finnes i testen, men som eksempel)
+  # GAMMEL:
+  #   path: "tests/data/Gammel_Data.xlsx"
+  #   col_date: "Date5"
+  #   col_time: "Time6"
+  #   col_data: "Value"
 
 # ------------------------------------------------------------------------------
 # 3. SERIER (HVA SKAL PLOTTES?)
 # ------------------------------------------------------------------------------
 series:
-  # --- EKSEMPEL 1: ENKEL KORRIGERING ---
-  # Trekker barometer (B) fra logger (L1_24).
-  - label: "Laksemyra 1 (2024)"
-    formula: "L1_24.ch1 - B.ch1"
+  # Serie 1: Laksmyra (Bruker standardfiler)
+  # Husk: I formelen bruker du ALLTID .ch1, uansett hva kolonnen heter i filen.
+  - label: "Laksemyra 1 (Standard)"
+    formula: "L1.ch1 - B.ch1/9.81"
 
-  # --- EKSEMPEL 2: SAMMENSLÅING AV ÅR (LONG TIME SERIES) ---
-  # Hvis du gir to oppføringer SAMME 'label', vil programmet lime dem sammen
-  # til én lang, kontinuerlig tidslinje i plottet.
-  # (Nyttig hvis du har L1_23 og L1_24 definert som filer over)
-  
-  # - label: "Laksemyra Langtidsserie"
-  #   formula: "L1_23.ch1 - B.ch1"
-  
-  # - label: "Laksemyra Langtidsserie"
-  #   formula: "L1_24.ch1 - B.ch1"
-
-  # --- EKSEMPEL 3: AVANSERT MATEMATIKK (ENHETSKONVERTERING) ---
-  # Her konverterer vi Barometer (kPa) til meter vannsøyle før subtraksjon.
-  # Formel: (Baro_kPa * 1000) / (VannTetthet * Tyngdekraft)
-  # Antar: Tetthet=1000 kg/m3, G=9.81 m/s2
-  - label: "TAP Nord (Avansert Korrigering)"
-    formula: "TAP_24.ch1 - ((B.ch1 * 1000) / (1000 * 9.81))"
-
-  # --- EKSEMPEL 4: RÅDATA (INGEN FORMELL) ---
-  # Bare vis rådataene fra barometeret for å sjekke støy.
-  - label: "Barometer (Rådata)"
-    formula: "B.ch1"
+  # Serie 2: TAP Nord (Bruker filen med overstyrte kolonner)
+  # Programmet vet nå at for 'TAP' skal den hente data fra kolonnen 'ch1'.
+  - label: "TAP Nord (Custom Format)"
+    formula: "TAP.ch1 - B2.ch1/9.81"
