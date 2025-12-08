@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import logging
+import os
 
 # Opprett logger for denne modulen
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ def last_og_rens_data(
     col_data: str
 ) -> pd.DataFrame:
     """
-    Laster Excel eller CSV-fil med moderne Path og match/case.
+    Laster Excel eller CSV-fil med automatisk deteksjon av format og metadata.
     """
     path = Path(filsti)
     if not path.exists():
@@ -34,39 +35,70 @@ def last_og_rens_data(
 
     match ext:
         case '.xlsx':
-            df = pd.read_excel(path, engine='openpyxl')
-            day_first_config = False
+            # --- EXCEL LOGIKK ---
+            df_peek = pd.read_excel(path, engine='openpyxl', nrows=30, header=None)
+            
+            header_row = 0
+            found_header = False
+            
+            for idx, row in df_peek.iterrows():
+                row_values = [str(val).strip() for val in row.values]
+                if col_date in row_values:
+                    header_row = idx
+                    found_header = True
+                    break
+            
+            if not found_header:
+                logger.warning(f"Fant ikke '{col_date}' i toppen av {path}. Leser fra start.")
+
+            df = pd.read_excel(path, engine='openpyxl', header=header_row)
+            
+            if not df.empty and col_date in df.columns:
+                first_val = df[col_date].dropna().iloc[0]
+                if isinstance(first_val, str) and '.' in first_val:
+                    day_first_config = True
+                else:
+                    day_first_config = False
         
         case '.csv':
+            # --- CSV LOGIKK ---
             header_row = 0
             encoding = 'latin1'
+            header_line_content = ""
             
             with open(path, 'r', encoding=encoding) as f:
                 for i, line in enumerate(f):
                     if col_date in line:
                         header_row = i
+                        header_line_content = line
                         break
+            
+            if ';' in header_line_content:
+                sep = ';'
+                decimal = ','
+                day_first_config = True
+            else:
+                sep = ','
+                decimal = '.'
+                day_first_config = False
             
             df = pd.read_csv(
                 path, 
-                sep=';', 
-                decimal=',', 
+                sep=sep, 
+                decimal=decimal, 
                 skiprows=header_row, 
                 encoding=encoding,
                 on_bad_lines='skip'
             )
-            day_first_config = True
             
         case _:
             raise ValueError(f"Ukjent filformat: {ext}")
     
-    # Rens kolonnenavn
     df.columns = [str(c).strip() for c in df.columns]
     
     if col_data not in df.columns:
          raise ValueError(f"Fant ikke datakolonnen '{col_data}' i {path}. Tilgjengelige: {df.columns.tolist()}")
 
-    # Tidshåndtering
     if col_time and col_time in df.columns:
         if col_date not in df.columns:
              raise ValueError(f"Mangler datokolonne '{col_date}' i {path}")
@@ -97,7 +129,6 @@ def last_og_rens_data(
     return df_clean
 
 def vask_data(df: pd.DataFrame, kolonne: str, z_score: float) -> tuple[pd.DataFrame, int]:
-    """Fjerner data som er statistiske utliggere."""
     data = df[kolonne]
     std = data.std()
     
@@ -126,18 +157,29 @@ def plot_resultat(
     for i, serie in enumerate(result_series_list):
         df = serie.df
         label = serie.label
-        
         farge = colors[i % len(colors)]
         ax.plot(df['Datetime'], df['Resultat'], label=label, color=farge, linewidth=1.5, alpha=0.9)
     
     ax.set_title(tittel, fontsize=14)
     ax.set_ylabel("Verdi", fontsize=12)
     
-    locator = mdates.WeekdayLocator(interval=1, byweekday=mdates.MO)
-    ax.xaxis.set_major_locator(locator)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m.%Y'))
+    # --- SMARTERE X-AKSE FORMATERING (NYTT) ---
     
-    plt.xticks(rotation=45)
+    # 1. Bruk AutoDateLocator i stedet for WeekdayLocator.
+    #    Denne analyserer dataene og finner beste intervall (år, mnd, uke, dag).
+    locator = mdates.AutoDateLocator()
+    ax.xaxis.set_major_locator(locator)
+    
+    # 2. Format: Vi beholder norsk dato-stil
+    formatter = mdates.DateFormatter('%d.%m.%Y')
+    ax.xaxis.set_major_formatter(formatter)
+    
+    # 3. Autofmt: Roterer datoene automatisk så de ikke overlapper
+    fig.autofmt_xdate() 
+    
+    # (Vi fjerner manuell rotasjon og ticks-grid manipulation som var her før,
+    #  da autofmt og autolocator gjør en bedre jobb)
+    
     ax.autoscale(enable=True, axis='y', tight=False)
     ax.grid(True, which='major', linestyle='-', alpha=0.8)
     ax.minorticks_on()
