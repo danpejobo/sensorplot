@@ -39,11 +39,12 @@ def test_independent_pairs(tmp_path):
     l2_path = lag_dummy_excel(tmp_path, "Laks2.xlsx", "2024-01-01", [50, 50, 50])
     b2_path = lag_dummy_excel(tmp_path, "Baro2.xlsx", "2024-01-01", [5, 5, 5])
     
+    # ENDRING 1: Oppdatert fil-struktur (Dictionary med 'path' og 'cols')
     files_dict = {
-        "L1": l1_path,
-        "B1": b1_path,
-        "L2": l2_path,
-        "B2": b2_path
+        "L1": {'path': l1_path, 'cols': {}},
+        "B1": {'path': b1_path, 'cols': {}},
+        "L2": {'path': l2_path, 'cols': {}},
+        "B2": {'path': b2_path, 'cols': {}}
     }
     
     args = MockArgs()
@@ -58,11 +59,11 @@ def test_independent_pairs(tmp_path):
         formula="L1.ch1 - B1.ch1",
         all_files_dict=files_dict,
         loaded_dfs_cache=loaded_dfs_cache,
-        args=args,
-        use_time_col=use_time_col
+        # ENDRING 2: Oppdaterte argumentnavn (global_args, global_time_col)
+        global_args=args,
+        global_time_col=use_time_col
     )
     
-    # BRUKER .df (Dataclass)
     vals1 = res1.df['Resultat'].values
     assert vals1[0] == 90.0
     assert "L1" in loaded_dfs_cache
@@ -76,11 +77,10 @@ def test_independent_pairs(tmp_path):
         formula="L2.ch1 - B2.ch1",
         all_files_dict=files_dict,
         loaded_dfs_cache=loaded_dfs_cache,
-        args=args,
-        use_time_col=use_time_col
+        global_args=args,          # Oppdatert navn
+        global_time_col=use_time_col # Oppdatert navn
     )
     
-    # BRUKER .df (Dataclass)
     vals2 = res2.df['Resultat'].values
     assert vals2[0] == 45.0
     
