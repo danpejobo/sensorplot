@@ -7,12 +7,12 @@ Verktøyet gjør det enkelt å sammenligne sensordata, utføre matematiske korri
 ## Funksjonalitet
 
 * **Multiformat-støtte:** Leser både **Excel** (`.xlsx`) og **CSV** (`.csv`) automatisk.
-* **Smart CSV-lesing:** Detekterer automatisk start-raden for data i CSV-filer fra loggere (håndterer metadata i toppen).
-* **Parallell prosessering:** Laster og behandler flere filer samtidig (multithreading) for maksimal ytelse.
-* **Multiseries:** Kan plotte flere uavhengige serier i samme graf (f.eks. to ulike sensorer korrigert mot hvert sitt barometer).
-* **Matematiske formler:** Definer regnestykker direkte i terminalen (f.eks. `Vann.ch1 - Baro.ch1`).
+* **Smart CSV-lesing:** Detekterer automatisk start-raden for data i CSV-filer fra loggere (håndterer metadata i toppen) og skiller mellom norsk/internasjonalt format.
+* **Konfigurasjon:** Støtter **YAML**-filer for å lagre komplekse oppsett (filer, formler, innstillinger).
+* **Parallell prosessering:** Laster og behandler filer samtidig (multithreading) for maksimal ytelse.
+* **Multiseries:** Kan plotte flere uavhengige serier i samme graf, eller sy sammen oppdelte filer (f.eks. 2023 + 2024) til én kontinuerlig tidslinje.
+* **Matematiske formler:** Definer regnestykker direkte i terminalen eller config (f.eks. `Vann.ch1 - Baro.ch1`).
 * **Automatisk vasking:** Fjerner "outliers" (støy) basert på statistisk Z-score.
-* **Server-vennlig:** Kan lagre plott direkte til fil (PNG/PDF) for bruk på servere uten skjerm (headless).
 
 ---
 
@@ -45,88 +45,63 @@ Du kjører verktøyet ved å bruke `poetry run sensorplot`.
 ### Syntaks
 
 ```bash
-poetry run sensorplot --files <ALIAS>=<FILSTI> ... [OPTIONS]
+poetry run sensorplot [OPTIONS]
 ```
 
 ### Argumenter
 
-| Flagg | Beskrivelse | Standard (Default) |
+| Flagg | Beskrivelse | Standard |
 | :--- | :--- | :--- |
-| `--files` | **Påkrevd.** Liste over filer og alias. Format: `Alias=Filsti` | - |
-| `--series` | **Anbefalt.** Liste over serier å plotte. Format: `"Navn=Formel"`. | - |
-| `--formel` | Alternativ til `--series` for å plotte kun én enkelt linje. | - |
-| `--clean` | Fjerner støy (Z-score). Bruk alene eller med tall (f.eks 4.0). | `--clean` (std: 3.0) |
-| `--output` | Lagring/Visning. Se tabell under for oppførsel. | Vis GUI (default) |
+| `--config`, `-c` | **Anbefalt.** Sti til YAML-konfigurasjonsfil. | - |
+| `--files` | Liste over filer og alias. Format: `Alias=Filsti` (hvis ikke config brukes). | - |
+| `--series` | Liste over serier å plotte. Format: `"Navn=Formel"`. | - |
+| `--formel` | Enkel modus for å plotte én serie. | - |
+| `--clean` | Fjerner støy (Z-score). Eks: `--clean 3.0`. | 3.0 |
+| `--output` | Lagrer plott til fil. Uten filnavn brukes `sensorplot.png`. | Vis GUI |
 | `--tittel` | Setter overskrift på plottet. | "Sensor Plot" |
+| `--x-interval`| Manuell etikett-intervall på x-akse (eks: `1M`, `2W`, `3D`). | Auto |
 | `--datecol` | Navn på kolonnen som inneholder dato. | "Date5" |
 | `--timecol` | Navn på tidskolonne (`None` hvis samlet). | "Time6" |
 | `--datacol` | Navn på datakolonnen du vil lese fra filen. | "ch1" |
 
-### Oppførsel for `--output`
-
-| Kommando | Resultat |
-| :--- | :--- |
-| `sensorplot ...` (ingen flagg) | Åpner et **GUI-vindu** med plottet (lokal bruk). |
-| `sensorplot ... --output` | Lagrer plottet som **`sensorplot.png`** i gjeldende mappe. |
-| `sensorplot ... --output graf.pdf` | Lagrer plottet som **`graf.pdf`** (valgfritt navn/sti). |
-
-> **VIKTIG OM FORMELER:**
-> Uansett hva datakolonnen heter i filen (f.eks. "LEVEL" eller "Temperatur"), vil programmet internt kalle denne `Alias.ch1`. Bruk alltid `.ch1` i formlene dine.
+> **VIKTIG:** Argumenter gitt i terminalen (CLI) vil alltid overstyre innstillinger i konfigurasjonsfilen.
 
 ---
 
 ## Eksempler
 
-### 1. Hovedfunksjon: Flere serier (Excel)
-Her laster vi inn to sensorfiler (`L1`, `L2`) og én barometerfil (`B`). Vi plotter to linjer i samme graf: begge sensorene korrigert mot samme barometer.
+### 1. Bruk av konfigurasjonsfil (Anbefalt)
+For komplekse plott med mange filer og spesifikke innstillinger, bruk en YAML-fil (se `example_config.yaml`).
 
 ```bash
-poetry run sensorplot \
-  --files L1=Laksemyra1.xlsx L2=Laksemyra2.xlsx B=Baro.xlsx \
-  --series "Laksemyra 1=L1.ch1 - B.ch1" "Laksemyra 2=L2.ch1 - B.ch1" \
-  --tittel "Sammenligning av lokasjoner"
+poetry run sensorplot --config min_analyse.yaml
 ```
 
-### 2. CSV-filer med egne kolonnenavn
-Hvis du har CSV-filer fra loggere (som ofte har andre kolonnenavn enn standarden), må du spesifisere hvilke kolonner som skal brukes.
-* Dato: `Date`
-* Tid: `Time`
-* Data: `LEVEL`
+### 2. Enkel bruk (CLI)
+Her laster vi inn en vannstand-fil (L) og en baro-fil (B) og plotter differansen.
 
 ```bash
 poetry run sensorplot \
-  --files B="Barologger.csv" L1="Laksemyra1.csv" \
-  --series "Korrigert Nivå=L1.ch1 - B.ch1" \
+  --files L=Vann.xlsx B=Baro.xlsx \
+  --series "Korrigert Vannstand=L.ch1 - B.ch1"
+```
+
+### 3. CSV-filer med egne kolonnenavn
+Hvis du har CSV-filer fra loggere (som ofte har andre kolonnenavn enn standarden), må du spesifisere hvilke kolonner som skal brukes.
+
+```bash
+poetry run sensorplot \
+  --files L=Logger.csv \
+  --series "Rådata=L.ch1" \
   --datecol Date --timecol Time --datacol LEVEL
 ```
 
-### 3. Enkelt plott (Hurtigbruk)
-Hvis du bare skal plotte én ting, kan du bruke `--formel` i stedet for `--series`.
+### 4. Manuell styring av X-akse
+Hvis en lang tidsserie gir for tett tekst på x-aksen, kan du tvinge intervallet.
 
 ```bash
-poetry run sensorplot \
-  --files V=Vann.xlsx B=Baro.xlsx \
-  --formel "V.ch1 - B.ch1"
-```
-
-### 4. Avansert formel (Enhetskonvertering)
-Konverter barometer (kPa) til meter vannsøyle (dele på 9.81) før subtraksjon.
-
-```bash
-poetry run sensorplot \
-  --files V=Vann.xlsx B=Baro.xlsx \
-  --series "Justert nivå=V.ch1 - (B.ch1 / 9.81)"
-```
-
-### 5. Server-modus (Lagre til fil)
-Fjerner automatisk punkter som er støy (outliers) og lagrer resultatet som et bilde. Nyttig på servere uten skjerm.
-
-```bash
-poetry run sensorplot \
-  --files D=Data.xlsx \
-  --formel "D.ch1" \
-  --clean \
-  --output plott.png
+# Vis en etikett for hver måned
+poetry run sensorplot --config oppsett.yaml --x-interval 1M
 ```
 
 ---
@@ -141,8 +116,3 @@ Testene ligger i `tests/`-mappen. For å kjøre dem:
 ```bash
 poetry run pytest
 ```
-
-### Testdata
-For at integrasjonstestene skal fungere, må du legge ekte datafiler i mappen `tests/data/`:
-* `tests/data/Baro.xlsx`
-* `tests/data/Laksemyra_1.xlsx`
