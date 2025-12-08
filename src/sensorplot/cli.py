@@ -20,6 +20,7 @@ ARG_FORMULA = 'formel'
 ARG_CLEAN   = 'clean'    
 ARG_TITLE   = 'tittel'   
 ARG_OUTPUT  = 'output'   
+ARG_X_INT   = 'x-interval' 
 
 ARG_COL_DATE = 'datecol'
 ARG_COL_TIME = 'timecol'
@@ -31,30 +32,78 @@ DEF_TIME = 'Time6'
 DEF_DATA = 'ch1'
 
 # ==============================================================================
-#   HJELPETEKSTER
+#   HJELPETEKSTER (BESKRIVELSE OG EKSEMPLER)
 # ==============================================================================
 
 BESKRIVELSE = """
-Verktøy for å plotte og beregne sensordata fra Excel-filer (.xlsx).
-Støtter plotting av flere serier, matematiske korreksjoner og automatisk støyfjerning.
+-------------------------------------------------------------------------
+ SENSORPLOT - Verktøy for visualisering og analyse av tidsseriedata
+-------------------------------------------------------------------------
+ Dette verktøyet er designet for å behandle store mengder sensordata 
+ fra både Excel (.xlsx) og CSV-filer (.csv).
+
+ HOVEDFUNKSJONER:
+  1. Multiformat: Leser automatisk filer fra ulike loggere (både norsk
+     og internasjonalt datoformat).
+  2. Parallell prosessering: Laster og behandler filer samtidig for høy ytelse.
+  3. Serier: Kan plotte flere uavhengige linjer i samme graf, eller sy sammen
+     oppdelte filer (f.eks 2023 + 2024) til én kontinuerlig tidslinje.
+  4. Matematikk: Lar deg korrigere data (f.eks barometrisk kompensasjon)
+     direkte i kommandolinjen.
+  5. Vasking: Fjerner automatisk støy (outliers) basert på statistikk.
 """
 
 EKSEMPLER = f"""
 EKSEMPLER PÅ BRUK:
-------------------
-1. FLERE SERIER:
-   sensorplot --{ARG_FILES} L1=Laksemyra1.xlsx L2=Laksemyra2.xlsx B=Baro.xlsx \\
-              --{ARG_SERIES} "Laksemyra 1=L1.ch1 - B.ch1" "Laksemyra 2=L2.ch1 - B.ch1"
+==================
 
-2. LANG TIDSSERIE (Sammenslåing):
-   Hvis du har data for 2024 og 2025 i hver sin fil, men vil ha én linje i plottet:
-   Bruk samme navn ("Min Serie") på begge!
+1. GRUNNLEGGENDE BRUK (To filer, én korrigert serie)
+   Her laster vi en vannstand-fil (L) og en baro-fil (B). Vi plotter differansen.
    
-   sensorplot --{ARG_FILES} D24=Data24.xlsx D25=Data25.xlsx B=Baro.xlsx \\
-              --{ARG_SERIES} "Min Serie=D24.ch1 - B.ch1" "Min Serie=D25.ch1 - B.ch1"
+   sensorplot --{ARG_FILES} L=Vann.xlsx B=Baro.xlsx \\
+              --{ARG_SERIES} "Korrigert Vannstand=L.ch1 - B.ch1"
 
-3. LAGRE TIL FIL:
-   sensorplot --{ARG_FILES} D=Data.xlsx --{ARG_FORMULA} "D.ch1" --{ARG_OUTPUT} plott.png
+2. AVANSERT FORMELL (Enhetskonvertering)
+   Hvis Baro er i kPa og Vann i meter, må vi konvertere Baro til meter før vi trekker fra.
+   (Formel: kPa / 9.81 = meter vannsøyle).
+   
+   sensorplot --{ARG_FILES} L=Vann.xlsx B=Baro.xlsx \\
+              --{ARG_SERIES} "Nivå=L.ch1 - (B.ch1 / 9.81)"
+
+3. FLERE LOKASJONER I SAMME PLOTT
+   Sammenlign to forskjellige brønner (L1 og L2) korrigert mot samme barometer (B).
+   
+   sensorplot --{ARG_FILES} L1=Brønn1.xlsx L2=Brønn2.xlsx B=Baro.xlsx \\
+              --{ARG_SERIES} "Brønn 1=L1.ch1 - B.ch1" "Brønn 2=L2.ch1 - B.ch1"
+
+4. SAMMENSLÅING AV FLERE ÅR (Long time series)
+   Har du dataene dine splittet i flere filer (f.eks. "Data2023.xlsx" og "Data2024.xlsx")?
+   Gi dem SAMME navn i --{ARG_SERIES}, så syr programmet dem sammen automatisk.
+   
+   sensorplot --{ARG_FILES} D23=Data2023.xlsx D24=Data2024.xlsx B=Baro.xlsx \\
+              --{ARG_SERIES} "Lang tidsserie=D23.ch1 - B.ch1" "Lang tidsserie=D24.ch1 - B.ch1"
+
+5. LOGGER-FILER (CSV) MED EGNE KOLONNENAVN
+   Mange loggere bruker andre kolonnenavn enn standarden ({DEF_DATE}/{DEF_TIME}/{DEF_DATA}).
+   Her spesifiserer vi at dato heter 'Date', tid 'Time' og data 'LEVEL'.
+   
+   sensorplot --{ARG_FILES} L=Logger.csv \\
+              --{ARG_SERIES} "Rådata=L.ch1" \\
+              --{ARG_COL_DATE} Date --{ARG_COL_TIME} Time --{ARG_COL_DATA} LEVEL
+
+6. RYDDIGERE X-AKSE (Manuell intervall)
+   Hvis en lang tidsserie gir for tett tekst på x-aksen, kan du tvinge intervallet.
+   Koder: D=Dag, W=Uke, M=Måned, Y=År.
+   
+   sensorplot ... --{ARG_X_INT} 1M   (Vis en etikett for hver måned)
+   sensorplot ... --{ARG_X_INT} 2W   (Vis en etikett hver 2. uke)
+
+7. FJERNE STØY OG LAGRE TIL FIL (Server-modus)
+   --{ARG_CLEAN} fjerner punkter som avviker mye (Z-score).
+   --{ARG_OUTPUT} lagrer bildet i stedet for å vise det på skjermen.
+   
+   sensorplot --{ARG_FILES} D=Data.xlsx --{ARG_FORMULA} "D.ch1" \\
+              --{ARG_CLEAN} --{ARG_OUTPUT} rapport.png
 """
 
 # ==============================================================================
@@ -80,7 +129,8 @@ def extract_aliases_from_formula(formula):
 
 def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cache, args, use_time_col):
     """
-    Nå kjøres denne funksjonen i en egen tråd!
+    Kjøres i en egen tråd via ThreadPoolExecutor.
+    Henter filer (cachet), merger dem tidsmessig, og beregner formelen.
     """
     logger.info(f"Starter serie: '{series_label}'...")
     
@@ -94,10 +144,11 @@ def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cach
     # --- TRÅDSIKKER LASTING AV FILER ---
     for alias in needed_aliases:
         if alias not in loaded_dfs_cache:
+            # Lås kun hvis vi faktisk må laste filen (eller vente på noen som gjør det)
             with cache_lock:
-                if alias not in loaded_dfs_cache: # Dobbeltsjekk
+                if alias not in loaded_dfs_cache: # Dobbeltsjekk innenfor låsen
                     if alias not in all_files_dict:
-                        logger.error(f"Alias '{alias}' mangler i fil-listen.")
+                        logger.error(f"Alias '{alias}' mangler i fil-listen (--{ARG_FILES}).")
                         return None
                     
                     logger.info(f"  -> Laster fil for {alias}...")
@@ -112,6 +163,7 @@ def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cach
         current_dfs.append(loaded_dfs_cache[alias])
 
     # --- BEREGNING (CPU) ---
+    # Merge alle filene til samme tidslinje som den første filen i formelen
     merged_df = current_dfs[0]
     for other_df in current_dfs[1:]:
         merged_df = pd.merge_asof(
@@ -122,6 +174,7 @@ def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cach
             tolerance=pd.Timedelta('10min')
         )
 
+    # Bytt ut Alias.ch1 med pandas-vennlig `Alias.ch1` syntax for eval()
     safe_formel = re.sub(r'\b([a-zA-Z0-9_æøåÆØÅ]+\.ch1)\b', r'`\1`', formula)
     
     try:
@@ -130,13 +183,14 @@ def process_single_series(series_label, formula, all_files_dict, loaded_dfs_cach
         logger.error(f"  -> Feil i formel '{formula}': {e}")
         return None
 
+    # Vask data (fjern støy)
     if args.clean_threshold is not None:
         merged_df, antall = vask_data(merged_df, 'Resultat', z_score=args.clean_threshold)
         if antall > 0:
-            logger.info(f"  -> {series_label}: Renset {antall} punkter.")
+            logger.info(f"  -> {series_label}: Renset {antall} punkter (Z-score).")
 
     if merged_df.empty:
-        logger.warning(f"  -> {series_label}: Ingen data igjen.")
+        logger.warning(f"  -> {series_label}: Ingen data igjen etter prosessering.")
         return None
 
     logger.info(f"Ferdig med del-serie: '{series_label}'")
@@ -174,12 +228,18 @@ def main():
     
     parser.add_argument(f'--{ARG_OUTPUT}', dest='output_file', 
                         nargs='?', const='sensorplot.png', default=None, type=str,
-                        help='Lagre plott. Utelatt: Vis GUI.')
+                        help='Lagre plott til fil. Uten filnavn: "sensorplot.png". Utelatt: Vis GUI.')
+
+    parser.add_argument(f'--{ARG_X_INT}', dest='x_interval', type=str, default=None,
+                        help='Manuell X-akse etikett-intervall. Eks: "2W" (2 uker), "1M" (1 mnd), "1Y" (1 år).')
 
     # Kolonner
-    parser.add_argument(f'--{ARG_COL_DATE}', dest='col_date', type=str, default=DEF_DATE, help=f'Standard: {DEF_DATE}')
-    parser.add_argument(f'--{ARG_COL_TIME}', dest='col_time', type=str, default=DEF_TIME, help=f'Standard: {DEF_TIME}')
-    parser.add_argument(f'--{ARG_COL_DATA}', dest='col_data', type=str, default=DEF_DATA, help=f'Standard: {DEF_DATA}')
+    parser.add_argument(f'--{ARG_COL_DATE}', dest='col_date', type=str, default=DEF_DATE, 
+                        help=f'Navn på datokolonne (Standard: {DEF_DATE})')
+    parser.add_argument(f'--{ARG_COL_TIME}', dest='col_time', type=str, default=DEF_TIME, 
+                        help=f'Navn på tidskolonne (Standard: {DEF_TIME}). Sett til "None" hvis samlet.')
+    parser.add_argument(f'--{ARG_COL_DATA}', dest='col_data', type=str, default=DEF_DATA, 
+                        help=f'Navn på datokolonne (Standard: {DEF_DATA})')
     
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)
@@ -208,6 +268,7 @@ def main():
             label, formula = s.split("=", 1)
             plot_definitions.append((label.strip(), formula.strip()))
     else:
+        # Legacy fallback
         plot_definitions.append(("Resultat", args.calc_formula))
 
     logger.info("--- Starter prosessering (Parallelt) ---")
@@ -215,7 +276,7 @@ def main():
     loaded_dfs_cache = {} 
     raw_results = []
     
-    # Bruker ThreadPoolExecutor for multithreading
+    # Bruker ThreadPoolExecutor for å kjøre ting samtidig (I/O bundet)
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
         for label, formula in plot_definitions:
@@ -225,6 +286,7 @@ def main():
             )
             futures.append(future)
         
+        # Hent resultater etter hvert som de blir ferdige
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res:
@@ -234,7 +296,7 @@ def main():
         logger.warning("Ingen data å plotte.")
         return
 
-    # --- NY LOGIKK: SLÅ SAMMEN SERIER MED SAMME NAVN ---
+    # --- KONSOLIDERING: Slå sammen serier med samme navn ---
     logger.info("Konsoliderer serier...")
     consolidated_dict = {}
 
@@ -255,7 +317,13 @@ def main():
             final_results.append(SensorResult(label=label, df=combined_df))
 
     logger.info("Genererer plott...")
-    plot_resultat(final_results, args.plot_title, output_file=args.output_file)
+    
+    plot_resultat(
+        final_results, 
+        args.plot_title, 
+        output_file=args.output_file, 
+        x_interval=args.x_interval
+    )
 
 if __name__ == "__main__":
     main()

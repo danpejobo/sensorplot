@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import logging
-import os
+import re 
 
 # Opprett logger for denne modulen
 logger = logging.getLogger(__name__)
@@ -35,7 +35,6 @@ def last_og_rens_data(
 
     match ext:
         case '.xlsx':
-            # --- EXCEL LOGIKK ---
             df_peek = pd.read_excel(path, engine='openpyxl', nrows=30, header=None)
             
             header_row = 0
@@ -61,7 +60,6 @@ def last_og_rens_data(
                     day_first_config = False
         
         case '.csv':
-            # --- CSV LOGIKK ---
             header_row = 0
             encoding = 'latin1'
             header_line_content = ""
@@ -146,7 +144,8 @@ def vask_data(df: pd.DataFrame, kolonne: str, z_score: float) -> tuple[pd.DataFr
 def plot_resultat(
     result_series_list: list[SensorResult], 
     tittel: str, 
-    output_file: str | None = None
+    output_file: str | None = None,
+    x_interval: str | None = None  # <--- NYTT ARGUMENT
 ) -> None:
     """Genererer plottet for FLERE serier."""
     fig, ax = plt.subplots(figsize=(14, 7))
@@ -163,22 +162,35 @@ def plot_resultat(
     ax.set_title(tittel, fontsize=14)
     ax.set_ylabel("Verdi", fontsize=12)
     
-    # --- SMARTERE X-AKSE FORMATERING (NYTT) ---
+    # --- X-AKSE FORMATERING ---
+    locator = None
     
-    # 1. Bruk AutoDateLocator i stedet for WeekdayLocator.
-    #    Denne analyserer dataene og finner beste intervall (år, mnd, uke, dag).
-    locator = mdates.AutoDateLocator()
+    if x_interval:
+        # Prøv å parse format som "2W", "1M" etc.
+        match = re.match(r'^(\d+)([DWMYdwmy])$', x_interval)
+        if match:
+            num = int(match.group(1))
+            unit = match.group(2).upper()
+            
+            if unit == 'D':
+                locator = mdates.DayLocator(interval=num)
+            elif unit == 'W':
+                locator = mdates.WeekdayLocator(interval=num)
+            elif unit == 'M':
+                locator = mdates.MonthLocator(interval=num)
+            elif unit == 'Y':
+                locator = mdates.YearLocator(base=num)
+        else:
+            logger.warning(f"Kunne ikke tolke intervall '{x_interval}'. Bruker auto.")
+
+    # Fallback til AutoDateLocator hvis ingen manuell config eller ugyldig config
+    if not locator:
+        locator = mdates.AutoDateLocator()
+
     ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m.%Y'))
     
-    # 2. Format: Vi beholder norsk dato-stil
-    formatter = mdates.DateFormatter('%d.%m.%Y')
-    ax.xaxis.set_major_formatter(formatter)
-    
-    # 3. Autofmt: Roterer datoene automatisk så de ikke overlapper
     fig.autofmt_xdate() 
-    
-    # (Vi fjerner manuell rotasjon og ticks-grid manipulation som var her før,
-    #  da autofmt og autolocator gjør en bedre jobb)
     
     ax.autoscale(enable=True, axis='y', tight=False)
     ax.grid(True, which='major', linestyle='-', alpha=0.8)
