@@ -36,7 +36,8 @@ Date,Time,Value
     df = last_og_rens_data(filsti, "TAP", "Date", "Time", "Value")
     
     assert len(df) == 2
-    assert df['TAP.ch1'].iloc[0] == 10.5  # Sjekk at 10.5 ble lest som tall
+    # ENDRING: Sjekker 'TAP.Value'
+    assert df['TAP.Value'].iloc[0] == 10.5  
     assert df['Datetime'].iloc[0].year == 2024
     assert df['Datetime'].iloc[0].month == 1
 
@@ -59,13 +60,15 @@ Dato;Tid;Nivå
     df = last_og_rens_data(filsti, "Norsk", "Dato", "Tid", "Nivå")
     
     assert len(df) == 2
-    assert df['Norsk.ch1'].iloc[0] == 10.5 # Sjekk at 10,5 ble til 10.5
+    # ENDRING: Sjekker 'Norsk.Nivå'
+    assert df['Norsk.Nivå'].iloc[0] == 10.5 
     assert df['Datetime'].iloc[0].day == 31
     assert df['Datetime'].iloc[0].month == 12
 
 # ==============================================================================
 #   TEST AV SAMMENSLÅING (Consolidation Logic)
 # ==============================================================================
+# (Resten av filen er uendret, da den tester logikk som ikke er påvirket av kolonnenavn)
 
 def test_sammenslaaing_av_serier():
     """

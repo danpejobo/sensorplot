@@ -51,7 +51,9 @@ Date;Time;Level
     df = last_og_rens_data(filnavn, "Test", "Date", "Time", "Level")
     
     assert len(df) == 2
-    assert df['Test.ch1'].iloc[0] == 10.5  # Sjekk at komma ble til punktum
+    # ENDRING: Sjekker nå 'Test.Level' i stedet for hardkodet 'ch1'
+    assert df['Test.Level'].iloc[0] == 10.5  
+    
     # Sjekk at 10. mai ble lest riktig (ikke 5. oktober)
     assert df['Datetime'].iloc[0].day == 10 
     assert df['Datetime'].iloc[0].month == 5
@@ -75,7 +77,8 @@ Date,Time,Value
     df = last_og_rens_data(filnavn, "Test2", "Date", "Time", "Value")
     
     assert len(df) == 2
-    assert df['Test2.ch1'].iloc[0] == 10.5
+    # ENDRING: Sjekker 'Test2.Value'
+    assert df['Test2.Value'].iloc[0] == 10.5
     assert df['Datetime'].iloc[0].year == 2024
     assert df['Datetime'].iloc[0].month == 5
     assert df['Datetime'].iloc[0].day == 10
@@ -100,7 +103,8 @@ def test_les_excel_med_metadata(tmp_path):
     df = last_og_rens_data(filnavn, "ExcelTest", "Dato", "Tid", "Måling")
     
     assert not df.empty
-    assert df['ExcelTest.ch1'].iloc[0] == 500
+    # ENDRING: Sjekker 'ExcelTest.Måling'
+    assert df['ExcelTest.Måling'].iloc[0] == 500
 
 # ==============================================================================
 #   INTEGRASJONSTESTER (Krever ekte filer i tests/data/)
@@ -112,6 +116,7 @@ def test_laste_ekte_baro_fil():
     df = last_og_rens_data(filsti, "Baro", "Date5", "Time6", "ch1")
     assert not df.empty
     assert 'Datetime' in df.columns
+    # Denne vil hete 'Baro.ch1' fordi vi ba om 'ch1', så det er OK.
 
 @pytest.mark.skipif(not os.path.exists("tests/data/Laksemyra_1.xlsx"), reason="Mangler fil")
 def test_laste_ekte_laksemyra_fil():

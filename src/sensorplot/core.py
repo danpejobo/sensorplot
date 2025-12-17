@@ -43,7 +43,7 @@ def last_og_rens_data(
             for idx, row in df_peek.iterrows():
                 row_values = [str(val).strip() for val in row.values]
                 if col_date in row_values:
-                    header_row = idx
+                    header_row = int(idx) # type: ignore
                     found_header = True
                     break
             
@@ -122,7 +122,7 @@ def last_og_rens_data(
     df = df.sort_values('Datetime')
     
     df_clean = df[['Datetime', col_data]].copy()
-    df_clean.columns = ['Datetime', f'{alias}.ch1']
+    df_clean.columns = ['Datetime', f'{alias}.{col_data}']
     
     return df_clean
 
