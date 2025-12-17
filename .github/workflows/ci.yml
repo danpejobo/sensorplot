@@ -1,6 +1,5 @@
 name: CI - Test & Lint
 
-# Definerer de "logiske punktene" hvor runneren skal starte
 on:
   push:
     branches: ["main", "dev"]
@@ -8,30 +7,50 @@ on:
     branches: ["main", "dev"]
 
 jobs:
-  test:
+  quality_check:
+    name: "Build & Test (Python ${{ matrix.python-version }})"
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13", "3.14-dev"]
 
     steps:
-      # 1. Henter koden din
-      - name: Checkout code
+      # --- FASE 1: OPPSETT ---
+      
+      - name: "📥 Checkout Source Code"
         uses: actions/checkout@v4
 
-      # 2. Setter opp Python (samme versjon som i pyproject.toml)
-      - name: Set up Python
+      - name: "🐍 Set up Python ${{ matrix.python-version }}"
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
-      # 3. Installerer Poetry
-      - name: Install Poetry
+      - name: "⚙️ Install Poetry Tool"
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      # 4. Installerer avhengigheter (cache gjør det raskere neste gang)
-      - name: Install Dependencies
-        run: poetry install
+      # --- FASE 2: INSTALLASJON ---
       
-      # 5. Kjører testene dine (pytest er definert i pyproject.toml dev-dependencies)
-      - name: Run Tests
+      - name: "📦 Install Project Dependencies"
+        run: poetry install --no-interaction
+
+      # --- FASE 3: STATISK ANALYSE (Linting/PEP8) ---
+      
+      # Her kan PEP8-sjekker komme senere.
+      # F.eks. med ruff, flake8 eller black.
+      # - name: "🔍 Run Linter (PEP8 Check)"
+      #   run: poetry run flake8 src/ tests/
+
+      # --- FASE 4: TESTING & COVERAGE ---
+
+      - name: "🧪 Run Test Suite (Pytest)"
+        # Hvis du vil ha coverage senere, endre denne til:
+        # run: poetry run pytest --cov=sensorplot --cov-report=xml
         run: poetry run pytest
+      
+      # Eksempel på opplasting av coverage-rapport (for Codecov e.l.)
+      # - name: "📊 Upload Coverage Report"
+      #   uses: codecov/codecov-action@v3
