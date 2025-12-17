@@ -1,0 +1,47 @@
+name: 🐞 Bug Report
+description: Meld ifra om noe som ikke fungerer i Sensorplot
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Takk for at du tar deg tid til å fylle ut denne!
+  
+  - type: textarea
+    id: description
+    attributes:
+      label: Beskrivelse av feilen
+      description: Hva skjedde?
+      placeholder: Når jeg prøvde å laste opp en Excel-fil...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Hvor oppstod feilen?
+      options:
+        - Web GUI (Streamlit)
+        - CLI (Terminal)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: filetype
+    attributes:
+      label: Filtype
+      description: Hvilken type fil prøvde du å lese?
+      options:
+        - Excel (.xlsx)
+        - CSV (Norsk format)
+        - CSV (Internasjonalt format)
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Feilmelding / Logs
+      description: Lim inn feilmeldingen fra terminalen her.
+      render: shell

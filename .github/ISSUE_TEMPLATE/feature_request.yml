@@ -1,0 +1,21 @@
+name: 🚀 Feature Request
+description: Foreslå en ny funksjon eller forbedring
+title: "[FEAT]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Er problemet relatert til et problem?
+      description: Beskriv problemet du prøver å løse.
+      placeholder: Jeg blir frustrert når jeg må...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Foreslått løsning
+      description: Hvordan ser du for deg at det skal fungere?
+    validations:
+      required: true
