@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sensorplot"
-version = "0.1.0"
+version = "0.2.0"
 description = "Verktøy for analyse av sensordata"
 authors = ["Daniel Persen <danpe_jobo@hotmail.com>"]
 readme = "README.md"
