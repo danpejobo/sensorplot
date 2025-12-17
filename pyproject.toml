@@ -20,6 +20,8 @@ pytest = "^8.0.0"
 
 [tool.poetry.scripts]
 sensorplot = "sensorplot.cli:main"
+sensorplot-cli = "sensorplot.cli:main"
+sensorplot-gui = "sensorplot.__main__:gui"
 
 [build-system]
 requires = ["poetry-core"]
