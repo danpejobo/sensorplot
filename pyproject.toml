@@ -2,7 +2,7 @@
 name = "sensorplot"
 version = "0.1.0"
 description = "Verktøy for analyse av sensordata"
-authors = ["Ditt Navn <deg@eksempel.no>"]
+authors = ["Daniel Persen <danpe_jobo@hotmail.com>"]
 readme = "README.md"
 packages = [{include = "sensorplot", from = "src"}]
 
@@ -13,6 +13,7 @@ matplotlib = "^3.8.0"
 openpyxl = "^3.1.0"
 pyyaml = "^6.0.3"
 streamlit = "^1.52.1"
+plotly = "^6.5.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

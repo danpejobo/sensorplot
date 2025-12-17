@@ -2,154 +2,343 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import plotly.graph_objects as go
 import re
-from pathlib import Path
-import tempfile
 import os
+import tempfile
+import io
+from pathlib import Path
+from datetime import datetime
 
-# Vi importerer din eksisterende logikk fra core
-from sensorplot.core import last_og_rens_data, vask_data
+# Import kjernefunksjonalitet
+from sensorplot.core import last_og_rens_data, vask_data, SensorResult
+
 
 def save_uploaded_file(uploaded_file):
-    """Hjelper for å lagre opplastet fil midlertidig slik at core.py kan lese den."""
+    """Lagrer opplastet fil midlertidig."""
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
+        suffix = Path(uploaded_file.name).suffix
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(uploaded_file.getvalue())
             return tmp.name
     except Exception as e:
         st.error(f"Feil ved lagring av fil: {e}")
         return None
 
+
+def sanitize_filename(title):
+    """Gjør om en tittel til et trygt filnavn."""
+    clean = re.sub(r'[^\w\s-]', '', title).strip().lower()
+    return re.sub(r'[\s]+', '_', clean) + ".png"
+
+
 def configure_page() -> None:
-    """Konfigurerer siden. Må kun kalles når appen kjøres standalone."""
-    st.set_page_config(page_title="Sensorplot GUI", layout="wide")
+    st.set_page_config(page_title="Sensorplot GUI",
+                       layout="wide", page_icon="📈")
+
 
 def run_app() -> None:
-    """Kjører selve Sensorplot UI-logikken. Kan trygt importeres av andre apper."""
-    st.title("Sensorplot 📈")
+    st.title("Sensorplot Analyseverktøy 📈")
 
-    # --- SIDEBAR: KONFIGURASJON ---
+    # Init variabler for å unngå "UnboundLocalError" hvis ingen filer lastes opp
+    plot_title = None
+    x_int = None
+
+    # --- SIDEBAR ---
     with st.sidebar:
-        st.header("1. Innstillinger")
-        col_date = st.text_input("Dato-kolonne", value="Date")
-        col_time = st.text_input("Tid-kolonne", value="Time")
-        col_data = st.text_input("Data-kolonne", value="LEVEL")
-        
-        st.header("2. Last opp filer")
-        uploaded_files = st.file_uploader("Velg Excel/CSV filer", accept_multiple_files=True)
-        
-        # Mapping mellom Alias og DataFrame
-        files_map = {} 
-        
+        st.header("1. Dataflyt")
+        uploaded_files = st.file_uploader(
+            "Last opp filer (.xlsx / .csv)", accept_multiple_files=True)
+
+        file_registry = {}
         if uploaded_files:
-            st.subheader("Gi alias til filer")
+            st.caption("Gi alias til filene:")
             for uf in uploaded_files:
-                # La brukeren velge et kort navn (Alias) f.eks "B" eller "L1"
-                default_alias = uf.name.split('.')[0].replace(" ", "_")
-                alias = st.text_input(f"Alias for {uf.name}", value=default_alias, key=uf.name)
-                
-                # Lagre filen midlertidig og last inn med din core-logikk
+                clean_name = uf.name.split('.')[0].replace(" ", "_")
+                c1, c2 = st.columns([0.6, 0.4])
+                with c1:
+                    st.write(f"📄 {clean_name}")
+                with c2:
+                    alias = st.text_input(
+                        uf.name, value=clean_name, key=f"alias_{uf.name}", label_visibility="collapsed")
+
                 temp_path = save_uploaded_file(uf)
                 if temp_path:
+                    file_registry[alias] = {'path': temp_path, 'name': uf.name}
+
+        st.divider()
+        st.header("2. Konfigurasjon")
+        with st.expander("Avanserte kolonnenavn", expanded=False):
+            col_date = st.text_input("Dato", value="Date5")
+            col_time = st.text_input("Tid", value="Time6")
+            col_data = st.text_input("Data", value="ch1")
+            if col_time and col_time.lower() == "none":
+                col_time = None
+
+    # --- HOVEDVINDU ---
+    if file_registry:
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            st.subheader("3. Beregninger")
+            formulas_input = st.text_area(
+                "Definer formler",
+                value="# Eks: Vannstand = L1.ch1 - B.ch1",
+                height=180
+            )
+        with c2:
+            st.subheader("4. Visning")
+            plot_title = st.text_input("Tittel", value="Sensoranalyse")
+            z_score = st.slider("Støyvask (Z-Score)", 1.0, 10.0, 3.0)
+            x_int = st.text_input(
+                "X-Akse Intervall (for PNG)", placeholder="Eks: 1M, 2W")
+
+        if st.button("🚀 Generer Plott", type="primary", width="stretch"):
+            results = calculate_series(
+                formulas_input, file_registry, col_date, col_time, col_data, z_score)
+            if results:
+                st.session_state['sensor_results'] = results
+                st.session_state['sensor_title'] = plot_title
+
+                # Opprett en unik ID for dette plottet
+                # Dette tvinger slideren til å nullstille seg hver gang et nytt plott genereres
+                st.session_state['plot_id'] = st.session_state.get(
+                    'plot_id', 0) + 1
+
+                st.rerun()
+    else:
+        st.info("Velkommen! Start med å laste opp sensorfiler.")
+
+    # --- VISNING ---
+    if 'sensor_results' in st.session_state:
+        current_title = plot_title if plot_title else st.session_state['sensor_title']
+        display_results_interface(
+            st.session_state['sensor_results'], current_title, x_int)
+
+
+def calculate_series(formulas_text, file_registry, col_date, col_time, col_data, z_score):
+    """Kjører selve data-prosesseringen."""
+    lines = [line.strip() for line in formulas_text.split(
+        '\n') if line.strip() and not line.strip().startswith("#")]
+    if not lines:
+        st.warning("Ingen formler definert.")
+        return None
+
+    loaded_dfs = {}
+    raw_results = []
+
+    with st.spinner("Leser filer og beregner..."):
+        for line in lines:
+            if "=" not in line:
+                continue
+            label, formula = line.split("=", 1)
+            label, formula = label.strip(), formula.strip()
+
+            formula = re.sub(r'(\d+),(\d+)', r'\1.\2', formula)
+            needed = re.findall(r'\b([a-zA-Z0-9_\-æøåÆØÅ]+)\.ch1\b', formula)
+
+            if not needed:
+                continue
+
+            current_dfs = []
+            missing = False
+            for alias in needed:
+                if alias not in file_registry:
+                    st.error(f"Mangler alias: {alias}")
+                    missing = True
+                    break
+                if alias not in loaded_dfs:
                     try:
-                        # Gjenbruker din robuste last_og_rens_data funksjon
-                        df = last_og_rens_data(temp_path, alias, col_date, col_time, col_data)
-                        files_map[alias] = df
+                        loaded_dfs[alias] = last_og_rens_data(
+                            file_registry[alias]['path'], alias, col_date, col_time, col_data)
                     except Exception as e:
-                        st.error(f"Kunne ikke lese {alias}: {e}")
-                    finally:
-                        if os.path.exists(temp_path):
-                            os.remove(temp_path) # Rydd opp
+                        st.error(f"Feil i {alias}: {e}")
+                        missing = True
+                        break
+                current_dfs.append(loaded_dfs[alias])
 
-    # --- HOVEDVINDU: FORMLER OG PLOTT ---
-    if files_map:
-        st.header("3. Definer Serier")
-        
-        # Input for formler
-        formulas_input = st.text_area(
-            "Skriv formler (én per linje). Eks: MinSerie = L1.ch1 - B.ch1", 
-            height=150
-        )
-        
-        z_score = st.slider("Støyvask (Z-Score)", 1.0, 5.0, 3.0)
-        
-        if st.button("Generer Plott"):
-            # Bruker matplotlib objekt-orientert stil
-            fig, ax = plt.subplots(figsize=(12, 6))
-            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-            
-            lines = [line.strip() for line in formulas_input.split('\n') if line.strip()]
-            
-            plotted_something = False
-            for i, line in enumerate(lines):
-                if "=" not in line:
-                    st.warning(f"Ignorerer ugyldig linje: {line}")
+            if missing:
+                continue
+
+            try:
+                merged = current_dfs[0]
+                for o in current_dfs[1:]:
+                    merged = pd.merge_asof(
+                        merged, o, on='Datetime', direction='nearest', tolerance=pd.Timedelta('10min'))
+
+                safe_f = re.sub(
+                    r'\b([a-zA-Z0-9_\-æøåÆØÅ]+\.ch1)\b', r'`\1`', formula)
+                result = merged.eval(safe_f, engine='python')
+
+                if isinstance(result, (tuple, list)):
+                    st.error(f"Feil i formel '{label}': Resultat ble liste.")
                     continue
-                
-                label, formula = line.split("=", 1)
-                label = label.strip()
-                formula = formula.strip()
-                
-                # Finn aliaser i formelen
-                needed_aliases = re.findall(r'\b([a-zA-Z0-9_æøåÆØÅ]+)\.ch1\b', formula)
-                
-                if not needed_aliases:
-                    continue
-                
-                # Merge logikk
-                try:
-                    # Start med første dataframe
-                    base_alias = needed_aliases[0]
-                    if base_alias not in files_map:
-                        st.error(f"Finner ikke alias '{base_alias}'")
-                        continue
 
-                    merged_df = files_map[base_alias].copy()
-                    
-                    for other_alias in needed_aliases[1:]:
-                        if other_alias not in files_map:
-                            st.error(f"Finner ikke alias '{other_alias}'")
-                            break
-                            
-                        merged_df = pd.merge_asof(
-                            merged_df, 
-                            files_map[other_alias], 
-                            on='Datetime', 
-                            direction='nearest', 
-                            tolerance=pd.Timedelta('10min')
-                        )
-                    
-                    # Beregn
-                    safe_formel = re.sub(r'\b([a-zA-Z0-9_æøåÆØÅ]+\.ch1)\b', r'`\1`', formula)
-                    merged_df['Resultat'] = merged_df.eval(safe_formel)
-                    
-                    # Vask
-                    merged_df, _ = vask_data(merged_df, 'Resultat', z_score)
-                    
-                    # Plot
-                    ax.plot(merged_df['Datetime'], merged_df['Resultat'], label=label, color=colors[i % len(colors)])
-                    plotted_something = True
-                    
-                except Exception as e:
-                    st.error(f"Feil i beregning av '{label}': {e}")
+                merged['Resultat'] = result
+                merged, _ = vask_data(merged, 'Resultat', z_score)
+                raw_results.append(SensorResult(label=label, df=merged))
+            except Exception as e:
+                st.error(f"Beregningfeil '{label}': {e}")
 
-            if plotted_something:
-                # Formatering av plott
-                ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m.%Y'))
-                fig.autofmt_xdate()
-                ax.grid(True, alpha=0.3)
-                ax.legend()
-                ax.set_ylabel("Verdi")
-                
-                st.pyplot(fig)
+    if raw_results:
+        consolidated = {}
+        for r in raw_results:
+            if r.label not in consolidated:
+                consolidated[r.label] = []
+            consolidated[r.label].append(r.df)
+
+        final_results = []
+        for lbl, dfs in consolidated.items():
+            if len(dfs) == 1:
+                final_results.append(SensorResult(label=lbl, df=dfs[0]))
             else:
-                st.info("Ingen gyldige formler funnet eller data å plotte.")
+                final_results.append(SensorResult(
+                    label=lbl, df=pd.concat(dfs).sort_values('Datetime')))
+
+        for info in file_registry.values():
+            if os.path.exists(info['path']):
+                try:
+                    os.remove(info['path'])
+                except:
+                    pass
+
+        return final_results
+    return None
+
+
+def display_results_interface(results, title, x_interval):
+    """Viser slider, plot og nedlastingsknapp."""
+    all_datetimes = []
+    for res in results:
+        if not res.df.empty:
+            all_datetimes.append(res.df['Datetime'])
+
+    filtered_results = results
+
+    st.divider()
+
+    if all_datetimes:
+        full_series = pd.concat(all_datetimes)
+        min_dt = full_series.min().to_pydatetime()
+        max_dt = full_series.max().to_pydatetime()
+
+        st.subheader("5. Tidsfilter")
+
+        if min_dt == max_dt:
+            st.warning("Datagrunnlaget inneholder kun ett tidspunkt.")
+        else:
+            # FIX 2: Bruk 'plot_id' i key for å tvinge reset ved nytt plott
+            current_plot_id = st.session_state.get('plot_id', 0)
+
+            val_range = st.slider(
+                "Juster tidsvindu:",
+                min_value=min_dt,
+                max_value=max_dt,
+                value=(min_dt, max_dt),
+                format="DD.MM.YY HH:mm",
+                # <-- Nøkkelen til suksess!
+                key=f"time_slider_{current_plot_id}"
+            )
+
+            filtered_results = []
+            start_filter, end_filter = val_range
+            for res in results:
+                mask = (res.df['Datetime'] >= start_filter) & (
+                    res.df['Datetime'] <= end_filter)
+                filtered_df = res.df.loc[mask]
+                if not filtered_df.empty:
+                    filtered_results.append(SensorResult(
+                        label=res.label, df=filtered_df))
+
+    st.subheader("📊 Interaktiv Analyse")
+    plot_interactive_plotly(filtered_results, title)
+
+    st.divider()
+    col_dl, _ = st.columns([1, 2])
+    with col_dl:
+        png_buffer = generate_static_matplotlib(
+            filtered_results, title, x_interval)
+        safe_name = sanitize_filename(title)
+
+        st.download_button(
+            label=f"💾 Last ned {safe_name}",
+            data=png_buffer,
+            file_name=safe_name,
+            mime="image/png",
+            width="stretch"
+        )
+
+
+def plot_interactive_plotly(results, title):
+    fig = go.Figure()
+    for serie in results:
+        fig.add_trace(go.Scatter(
+            x=serie.df['Datetime'], y=serie.df['Resultat'],
+            mode='lines', name=serie.label,
+            hovertemplate='%{y:.2f}<br>%{x|%d.%m.%Y %H:%M}'
+        ))
+
+    fig.update_layout(
+        title=title, xaxis_title="Tid", yaxis_title="Verdi",
+        hovermode="x unified", legend=dict(orientation="h", y=1.02, x=1),
+        margin=dict(l=40, r=40, t=40, b=40), template="plotly_white"
+    )
+    # Forsøk å bruke width="stretch" for å unngå deprecation warning
+    try:
+        st.plotly_chart(fig, width="stretch")
+    except TypeError:
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def generate_static_matplotlib(results, title, x_interval):
+    fig, ax = plt.subplots(figsize=(14, 7))
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+    has_data = False
+    for i, serie in enumerate(results):
+        if not serie.df.empty:
+            has_data = True
+            farge = colors[i % len(colors)]
+            ax.plot(serie.df['Datetime'], serie.df['Resultat'],
+                    label=serie.label, color=farge, linewidth=1.5, alpha=0.9)
+
+    ax.set_title(title, fontsize=16)
+    ax.set_ylabel("Verdi")
+
+    if has_data:
+        locator = None
+        if x_interval:
+            match = re.match(r'^(\d+)([DWMYdwmy])$', x_interval)
+            if match:
+                num = int(match.group(1))
+                unit = match.group(2).upper()
+                if unit == 'D':
+                    locator = mdates.DayLocator(interval=num)
+                elif unit == 'W':
+                    locator = mdates.WeekdayLocator(interval=num)
+                elif unit == 'M':
+                    locator = mdates.MonthLocator(interval=num)
+                elif unit == 'Y':
+                    locator = mdates.YearLocator(base=num)
+        if not locator:
+            locator = mdates.AutoDateLocator()
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m.%Y'))
+        fig.autofmt_xdate()
+
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
 
 def main() -> None:
-    """Konfigurer siden og kjør appen standalone."""
     configure_page()
     run_app()
+
 
 if __name__ == "__main__":
     main()

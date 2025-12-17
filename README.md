@@ -1,31 +1,23 @@
 # Sensorplot
 
-**Sensorplot** er et moderne, raskt og fleksibelt kommandolinjeverktøy (CLI) for visualisering og analyse av tidsseriedata. Det støtter både Excel- og CSV-filer, og er optimalisert for å håndtere flere datasett samtidig.
+**Sensorplot** er et kraftig verktøy for visualisering, analyse og korrigering av tidsseriedata fra sensorer. Prosjektet tilbyr nå to bruksmåter: et moderne **Web-grensesnitt (GUI)** for interaktiv analyse, og et effektivt **Kommandolinjeverktøy (CLI)** for batch-prosessering.
 
-Verktøyet gjør det enkelt å sammenligne sensordata, utføre matematiske korrigeringer (f.eks. barometrisk kompensasjon) og automatisk fjerne støy.
+## Hovedfunksjoner
 
-## Funksjonalitet
-
-* **Multiformat-støtte:** Leser både **Excel** (`.xlsx`) og **CSV** (`.csv`) automatisk.
-* **Smart CSV-lesing:** Detekterer automatisk start-raden for data i CSV-filer fra loggere (håndterer metadata i toppen) og skiller mellom norsk/internasjonalt format.
-* **Konfigurasjon:** Støtter **YAML**-filer for å lagre komplekse oppsett (filer, formler, innstillinger).
-* **Parallell prosessering:** Laster og behandler filer samtidig (multithreading) for maksimal ytelse.
-* **Multiseries:** Kan plotte flere uavhengige serier i samme graf, eller sy sammen oppdelte filer (f.eks. 2023 + 2024) til én kontinuerlig tidslinje.
-* **Matematiske formler:** Definer regnestykker direkte i terminalen eller config (f.eks. `Vann.ch1 - Baro.ch1`).
-* **Automatisk vasking:** Fjerner "outliers" (støy) basert på statistisk Z-score.
+* **Hybrid Visning:**
+    * 🖥️ **Interaktivt:** Zoom, panorer og inspiser data med Plotly i nettleseren.
+    * 📄 **Rapport:** Last ned høyoppløselige, statiske PNG-bilder (Matplotlib) perfekt formatert for Word/PowerPoint.
+* **Multiformat:** Leser automatisk både **Excel** (`.xlsx`) og **CSV** (`.csv`) fra ulike loggere (norsk/internasjonalt format).
+* **Avansert Matematikk:** Definer korreksjonsformler direkte (f.eks. `Vannstand = Logger.ch1 - Baro.ch1`). Håndterer automatisk "norsk komma" i tall.
+* **Støyvask:** Fjerner automatisk "outliers" (støy) basert på statistisk Z-score.
+* **Sammenslåing:** Syr automatisk sammen flere filer (f.eks. 2023 og 2024) til én lang tidslinje hvis de har samme serienavn.
+* **Modulær:** Kan kjøres alene eller importeres som en side i en annen Streamlit-app.
 
 ---
 
 ## Installasjon
 
 Prosjektet bruker [Poetry](https://python-poetry.org/) for pakke- og avhengighetshåndtering.
-
-### Forutsetninger
-
-* Python 3.10 eller nyere
-* Poetry installert (`pip install poetry`)
-
-### Oppsett
 
 1.  Naviger til prosjektmappen:
     ```bash
@@ -38,80 +30,92 @@ Prosjektet bruker [Poetry](https://python-poetry.org/) for pakke- og avhengighet
 
 ---
 
-## Bruk
+## 1. Bruk av Web-grensesnitt (GUI)
 
-Du kjører verktøyet ved å bruke `poetry run sensorplot`.
+Dette er den anbefalte måten å bruke Sensorplot på for analyse.
+
+### Kjøre appen
+```bash
+poetry run streamlit run src/sensorplot/app.py
+```
+
+### Funksjonalitet i GUI
+1.  **Last opp:** Dra og slipp Excel/CSV-filer i sidepanelet.
+2.  **Alias:** Gi filene korte navn (f.eks. `L1`, `Baro`).
+3.  **Formler:** Skriv regnestykker i tekstboksen:
+    * `Nivå = L1.ch1 - Baro.ch1`
+    * `Justert = (Data.ch1 * 100) / 9.81`
+4.  **Tidsfilter:** Bruk slideren for å justere tidsvinduet. Dette synkroniserer både det interaktive plottet og filen du laster ned.
+5.  **Last ned:** Klikk "Last ned" for å få et ferdig formatert bilde av det valgte tidsutsnittet.
+
+---
+
+## 2. Bruk av Kommandolinje (CLI)
+
+For automatisering eller behandling på servere uten skjerm.
 
 ### Syntaks
-
 ```bash
 poetry run sensorplot [OPTIONS]
 ```
 
 ### Argumenter
 
-| Flagg | Beskrivelse | Standard |
+| Flagg | Beskrivelse | Eksempel |
 | :--- | :--- | :--- |
-| `--config`, `-c` | **Anbefalt.** Sti til YAML-konfigurasjonsfil. | - |
-| `--files` | Liste over filer og alias. Format: `Alias=Filsti` (hvis ikke config brukes). | - |
-| `--series` | Liste over serier å plotte. Format: `"Navn=Formel"`. | - |
-| `--formel` | Enkel modus for å plotte én serie. | - |
-| `--clean` | Fjerner støy (Z-score). Eks: `--clean 3.0`. | 3.0 |
-| `--output` | Lagrer plott til fil. Uten filnavn brukes `sensorplot.png`. | Vis GUI |
-| `--tittel` | Setter overskrift på plottet. | "Sensor Plot" |
-| `--x-interval`| Manuell etikett-intervall på x-akse (eks: `1M`, `2W`, `3D`). | Auto |
-| `--datecol` | Navn på kolonnen som inneholder dato. | "Date5" |
-| `--timecol` | Navn på tidskolonne (`None` hvis samlet). | "Time6" |
-| `--datacol` | Navn på datakolonnen du vil lese fra filen. | "ch1" |
+| `--config`, `-c` | **Anbefalt.** Sti til YAML-konfigurasjonsfil. | `-c oppsett.yaml` |
+| `--files` | Liste over filer og alias (hvis ikke config brukes). | `L=Data.xlsx` |
+| `--series` | Liste over serier å plotte. | `"Nivå=L.ch1-B.ch1"` |
+| `--clean` | Fjerner støy (Z-score). | `--clean 3.0` |
+| `--output` | Lagrer plott til fil. | `--output figur.png` |
+| `--x-interval`| Tving etikett-intervall på x-akse. | `1M` (Måned), `2W` (Uker) |
+| `--tittel` | Setter overskrift på plottet. | "Min Analyse" |
 
-> **VIKTIG:** Argumenter gitt i terminalen (CLI) vil alltid overstyre innstillinger i konfigurasjonsfilen.
+### Eksempel med Config-fil (Anbefalt)
+Lag en fil `analyse.yaml`:
+```yaml
+files:
+  L1: "data/Laksmyra.xlsx"
+  B: "data/Baro.csv"
+series:
+  - label: "Korrigert Vannstand"
+    formula: "L1.ch1 - B.ch1"
+settings:
+  title: "Analyse 2024"
+  x_interval: "1M"
+```
+Kjør deretter:
+```bash
+poetry run sensorplot -c analyse.yaml
+```
 
 ---
 
-## Eksempler
+## 3. Integrasjon (Utviklere)
 
-### 1. Bruk av konfigurasjonsfil (Anbefalt)
-For komplekse plott med mange filer og spesifikke innstillinger, bruk en YAML-fil (se `example_config.yaml`).
+Sensorplot er designet for å kunne være en "modul" i større systemer.
 
-```bash
-poetry run sensorplot --config min_analyse.yaml
-```
+### Importere i en annen Streamlit-app
+Hvis du har et eksisterende dashboard, kan du legge til Sensorplot som en egen side:
 
-### 2. Enkel bruk (CLI)
-Her laster vi inn en vannstand-fil (L) og en baro-fil (B) og plotter differansen.
+```python
+# pages/05_Sensor_Analyse.py
+import streamlit as st
+from sensorplot.app import run_app
 
-```bash
-poetry run sensorplot \
-  --files L=Vann.xlsx B=Baro.xlsx \
-  --series "Korrigert Vannstand=L.ch1 - B.ch1"
-```
+st.set_page_config(page_title="Sensor Analyse", layout="wide")
 
-### 3. CSV-filer med egne kolonnenavn
-Hvis du har CSV-filer fra loggere (som ofte har andre kolonnenavn enn standarden), må du spesifisere hvilke kolonner som skal brukes.
-
-```bash
-poetry run sensorplot \
-  --files L=Logger.csv \
-  --series "Rådata=L.ch1" \
-  --datecol Date --timecol Time --datacol LEVEL
-```
-
-### 4. Manuell styring av X-akse
-Hvis en lang tidsserie gir for tett tekst på x-aksen, kan du tvinge intervallet.
-
-```bash
-# Vis en etikett for hver måned
-poetry run sensorplot --config oppsett.yaml --x-interval 1M
+st.markdown("# Mitt Dashboard")
+# Kjør Sensorplot-grensesnittet her
+run_app()
 ```
 
 ---
 
 ## Utvikling og Testing
 
-Prosjektet er bygget med moderne Python-prinsipper (Type Hinting, Dataclasses, Multithreading).
-
 ### Kjøre tester
-Testene ligger i `tests/`-mappen. For å kjøre dem:
+Prosjektet har omfattende tester for fil-lesing, matematikk og sammenslåing av serier.
 
 ```bash
 poetry run pytest
